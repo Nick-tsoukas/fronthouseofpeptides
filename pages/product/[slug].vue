@@ -109,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Variant } from '~/types'
 import { useProducts } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cart'

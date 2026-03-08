@@ -65,7 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import type { Product, Variant } from '~/types'
+import { computed } from 'vue'
+import type { Product } from '~/types'
 import { useCartStore } from '~/stores/cart'
 import { useCompliance } from '~/composables/useCompliance'
 import { CURRENCY } from '~/constants'

@@ -68,6 +68,17 @@ export default defineEventHandler(async (event) => {
         headers['Authorization'] = `Bearer ${strapiToken}`
       }
 
+      // IDEMPOTENCY CHECK: Check if order already exists
+      const existingOrderResponse = await $fetch<{ data: any[] }>(
+        `${strapiUrl}/api/orders?filters[stripeSessionId][$eq]=${session.id}`,
+        { headers }
+      )
+
+      if (existingOrderResponse.data && existingOrderResponse.data.length > 0) {
+        console.log(`Order already exists for session ${session.id}, skipping creation`)
+        return { received: true }
+      }
+
       // Create the order
       const orderResponse = await $fetch<{ data: { id: number } }>(`${strapiUrl}/api/orders`, {
         method: 'POST',
@@ -96,8 +107,9 @@ export default defineEventHandler(async (event) => {
 
       const orderId = orderResponse.data.id
 
-      // Create order items
+      // Create order items and decrement inventory
       for (const item of cartItems) {
+        // Create order item
         await $fetch(`${strapiUrl}/api/order-items`, {
           method: 'POST',
           headers,
@@ -112,6 +124,33 @@ export default defineEventHandler(async (event) => {
             },
           },
         })
+
+        // Decrement inventory for the variant
+        try {
+          // Fetch current inventory
+          const variantResponse = await $fetch<{ data: { id: number; attributes: { inventory: number | null } } }>(
+            `${strapiUrl}/api/variants/${item.variantId}`,
+            { headers }
+          )
+
+          const currentInventory = variantResponse.data?.attributes?.inventory
+          if (currentInventory !== null && currentInventory !== undefined) {
+            const newInventory = Math.max(0, currentInventory - item.quantity)
+            await $fetch(`${strapiUrl}/api/variants/${item.variantId}`, {
+              method: 'PUT',
+              headers,
+              body: {
+                data: {
+                  inventory: newInventory,
+                },
+              },
+            })
+            console.log(`Decremented inventory for variant ${item.variantId}: ${currentInventory} -> ${newInventory}`)
+          }
+        } catch (inventoryError) {
+          console.error(`Failed to decrement inventory for variant ${item.variantId}:`, inventoryError)
+          // Continue processing - inventory errors shouldn't fail the order
+        }
       }
 
       console.log(`Order ${orderId} created successfully for session ${session.id}`)
