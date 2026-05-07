@@ -2,7 +2,7 @@ import type { Product, StrapiResponse } from '~/types'
 import { mockProducts } from '~/data/mockProducts'
 
 // Set to true to use mock data (no backend required)
-const USE_MOCK_DATA = true
+const USE_MOCK_DATA = false
 
 export function useProducts() {
   const config = useRuntimeConfig()

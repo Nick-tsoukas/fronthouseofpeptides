@@ -1,9 +1,13 @@
 <template>
   <div>
     <HeroSection />
-    <CategorySection />
-    <IntroSection />
+    <TrustBar />
     <ProductGrid id="products" :products="products" :loading="pending" />
+    <LabSection />
+    <CategorySection />
+    <QualityProcess />
+    <WhyChooseUs />
+    <ComplianceDisclaimer />
   </div>
 </template>
 

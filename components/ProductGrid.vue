@@ -1,22 +1,22 @@
 <template>
-  <section class="relative py-24 bg-dark-950">
+  <section id="products" class="relative py-24 bg-dark-950">
     <!-- Background -->
     <div class="absolute inset-0">
-      <div class="absolute bottom-0 left-1/4 w-[600px] h-[400px] bg-primary-500/5 rounded-full blur-[120px]"></div>
-      <div class="absolute top-1/4 right-1/4 w-[400px] h-[400px] bg-emerald-500/5 rounded-full blur-[100px]"></div>
+      <div class="absolute top-0 right-1/4 w-[500px] h-[500px] bg-cyan-500/5 rounded-full blur-[150px]"></div>
+      <div class="absolute bottom-0 left-1/4 w-[400px] h-[400px] bg-teal-500/5 rounded-full blur-[120px]"></div>
     </div>
 
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Section Header -->
-      <div class="text-center mb-16">
-        <span class="inline-block px-4 py-1.5 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-400 text-sm font-medium tracking-wide uppercase mb-4">
-          Full Catalog
+      <div class="text-center mb-12">
+        <span class="inline-block px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-sm font-medium tracking-wide uppercase mb-4">
+          Research Compounds
         </span>
-        <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-6">
-          All <span class="bg-gradient-to-r from-primary-400 to-emerald-400 bg-clip-text text-transparent">Research Peptides</span>
+        <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">
+          Available Peptides
         </h2>
-        <p class="text-lg text-dark-400 max-w-2xl mx-auto">
-          Every compound in our collection is verified for 99%+ purity. For qualified researchers only.
+        <p class="text-dark-400 max-w-2xl mx-auto">
+          High-purity research compounds with batch-level testing and certificates of analysis.
         </p>
       </div>
 

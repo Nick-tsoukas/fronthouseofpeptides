@@ -1,33 +1,30 @@
 <template>
-  <div class="group relative bg-gradient-to-br from-dark-900 to-dark-950 rounded-2xl overflow-hidden border border-white/5 hover:border-primary-500/30 transition-all duration-500 hover:shadow-2xl hover:shadow-primary-500/10">
+  <div class="group relative bg-dark-900/50 rounded-xl overflow-hidden border border-white/5 hover:border-cyan-500/20 transition-all duration-300 hover:shadow-xl hover:shadow-cyan-500/5 hover:scale-[1.01]">
     <!-- Gradient Placeholder Image -->
-    <div class="relative aspect-square overflow-hidden">
+    <div class="relative aspect-[4/3] overflow-hidden">
       <div 
-        class="absolute inset-0 transition-all duration-700 group-hover:scale-110"
+        class="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
         :style="{ background: gradientStyle }"
       ></div>
-      <!-- Overlay on hover -->
-      <div class="absolute inset-0 bg-gradient-to-t from-dark-950 via-transparent to-transparent opacity-60"></div>
+      <!-- Overlay -->
+      <div class="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/20 to-transparent"></div>
       <!-- Badge -->
-      <div class="absolute top-4 left-4">
-        <span class="px-3 py-1.5 bg-gradient-to-r from-primary-500/90 to-emerald-500/90 text-white text-xs font-semibold rounded-full backdrop-blur-sm shadow-lg">
+      <div class="absolute top-3 left-3">
+        <span class="px-2.5 py-1 bg-cyan-500/90 text-white text-xs font-medium rounded backdrop-blur-sm">
           {{ product.attributes.badgeText || 'Research Use Only' }}
         </span>
       </div>
-      <!-- Quick View Button -->
-      <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-        <NuxtLink
-          :to="`/product/${product.attributes.slug}`"
-          class="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-medium rounded-xl border border-white/20 transition-all duration-300 transform translate-y-4 group-hover:translate-y-0"
-        >
-          View Details
-        </NuxtLink>
+      <!-- Purity Badge -->
+      <div class="absolute top-3 right-3">
+        <span class="px-2 py-1 bg-dark-950/80 text-cyan-400 text-xs font-medium rounded backdrop-blur-sm border border-cyan-500/20">
+          99%+ Pure
+        </span>
       </div>
     </div>
 
     <!-- Content -->
-    <div class="p-6">
-      <h3 class="text-xl font-semibold text-white mb-2 group-hover:text-primary-300 transition-colors">
+    <div class="p-5">
+      <h3 class="text-lg font-semibold text-white mb-1.5 group-hover:text-cyan-300 transition-colors duration-200">
         {{ product.attributes.name }}
       </h3>
       <p class="text-dark-400 text-sm mb-4 line-clamp-2 leading-relaxed">
@@ -35,27 +32,27 @@
       </p>
 
       <!-- Price & Variants -->
-      <div class="flex items-center justify-between mb-5">
-        <span class="text-lg font-bold bg-gradient-to-r from-primary-400 to-emerald-400 bg-clip-text text-transparent">
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-lg font-bold text-cyan-400">
           {{ priceRange }}
         </span>
-        <span class="text-dark-500 text-xs px-2 py-1 rounded-full bg-dark-800">
+        <span class="text-dark-500 text-xs">
           {{ variantCount }} variant{{ variantCount !== 1 ? 's' : '' }}
         </span>
       </div>
 
       <!-- Actions -->
-      <div class="flex gap-3">
+      <div class="flex gap-2">
         <NuxtLink
           :to="`/product/${product.attributes.slug}`"
-          class="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-xl text-center transition-all duration-300 border border-white/5 hover:border-white/10"
+          class="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-lg text-center transition-all duration-200 border border-white/5 hover:border-white/10"
         >
-          Details
+          View Details
         </NuxtLink>
         <button
           v-if="hasActiveVariants"
           @click="handleQuickAdd"
-          class="flex-1 px-4 py-3 bg-gradient-to-r from-primary-500 to-emerald-500 hover:from-primary-600 hover:to-emerald-600 text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-lg shadow-primary-500/20 hover:shadow-primary-500/30"
+          class="flex-1 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold rounded-lg transition-colors duration-200"
         >
           Quick Add
         </button>

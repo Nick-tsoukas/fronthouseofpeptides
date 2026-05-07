@@ -135,7 +135,7 @@ const formatPrice = (price: number) => {
 }
 
 // Demo mode - set to false when Stripe is configured
-const DEMO_MODE = true
+const DEMO_MODE = false
 
 const handleCheckout = async () => {
   if (!finalConfirmation.value) {
