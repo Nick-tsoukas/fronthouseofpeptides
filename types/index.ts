@@ -57,7 +57,7 @@ export interface Order {
     shippingPostalCode: string
     shippingCountry: string
     confirmationAccepted: boolean
-    status: 'pending' | 'paid' | 'failed' | 'refunded'
+    status: 'pending' | 'paid' | 'processing' | 'shipped' | 'failed' | 'refunded'
     createdAt: string
     updatedAt: string
   }
