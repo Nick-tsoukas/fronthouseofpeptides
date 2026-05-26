@@ -1,8 +1,17 @@
 <template>
   <div class="group relative bg-dark-900/50 rounded-xl overflow-hidden border border-white/5 hover:border-cyan-500/20 transition-all duration-300 hover:shadow-xl hover:shadow-cyan-500/5 hover:scale-[1.01]">
-    <!-- Gradient Placeholder Image -->
+    <!-- Product Image -->
     <div class="relative aspect-[4/3] overflow-hidden">
-      <div 
+      <!-- Real image -->
+      <img
+        v-if="imageUrl"
+        :src="imageUrl"
+        :alt="product.attributes.name"
+        class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+      />
+      <!-- Gradient fallback -->
+      <div
+        v-else
         class="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
         :style="{ background: gradientStyle }"
       ></div>
@@ -52,9 +61,10 @@
         <button
           v-if="hasActiveVariants"
           @click="handleQuickAdd"
-          class="flex-1 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold rounded-lg transition-colors duration-200"
+          :disabled="allOutOfStock"
+          class="flex-1 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 disabled:bg-dark-700 disabled:text-dark-500 text-white text-sm font-semibold rounded-lg transition-colors duration-200"
         >
-          Quick Add
+          {{ allOutOfStock ? 'Out of Stock' : 'Quick Add' }}
         </button>
       </div>
     </div>
@@ -66,6 +76,7 @@ import { computed } from 'vue'
 import type { Product } from '~/types'
 import { useCartStore } from '~/stores/cart'
 import { useCompliance } from '~/composables/useCompliance'
+import { useStrapiMedia } from '~/composables/useStrapiMedia'
 import { CURRENCY } from '~/constants'
 
 const props = defineProps<{
@@ -74,6 +85,13 @@ const props = defineProps<{
 
 const cartStore = useCartStore()
 const { requireConfirmation } = useCompliance()
+const { getStrapiMediaUrl } = useStrapiMedia()
+
+const imageUrl = computed(() => {
+  const raw = props.product.attributes.image?.data?.attributes
+  const url = raw?.formats?.medium?.url || raw?.formats?.small?.url || raw?.url
+  return getStrapiMediaUrl(url)
+})
 
 // Generate a consistent gradient based on product id
 const gradientStyle = computed(() => {
@@ -90,6 +108,17 @@ const hasActiveVariants = computed(() => activeVariants.value.length > 0)
 
 const variantCount = computed(() => activeVariants.value.length)
 
+const firstAvailableVariant = computed(() =>
+  activeVariants.value.find(v => {
+    const inv = v.attributes.inventory
+    return inv === null || inv === undefined || inv > 0
+  }) ?? null
+)
+
+const allOutOfStock = computed(() =>
+  hasActiveVariants.value && firstAvailableVariant.value === null
+)
+
 const priceRange = computed(() => {
   if (activeVariants.value.length === 0) return 'N/A'
   
@@ -104,10 +133,9 @@ const priceRange = computed(() => {
 })
 
 const handleQuickAdd = () => {
-  if (!hasActiveVariants.value) return
+  if (!firstAvailableVariant.value) return
   
-  // Quick add uses the first active variant
-  const variant = activeVariants.value[0]
+  const variant = firstAvailableVariant.value
   
   requireConfirmation(() => {
     cartStore.addItem({

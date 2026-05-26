@@ -1,3 +1,27 @@
+export interface StrapiMediaFormat {
+  url: string
+  width: number
+  height: number
+  size: number
+  mime: string
+}
+
+export interface StrapiMedia {
+  id: number
+  attributes: {
+    url: string
+    alternativeText: string | null
+    width: number
+    height: number
+    formats: {
+      thumbnail?: StrapiMediaFormat
+      small?: StrapiMediaFormat
+      medium?: StrapiMediaFormat
+      large?: StrapiMediaFormat
+    } | null
+  }
+}
+
 export interface Product {
   id: number
   attributes: {
@@ -10,6 +34,9 @@ export interface Product {
     badgeText: string
     createdAt: string
     updatedAt: string
+    image?: {
+      data: StrapiMedia | null
+    }
     variants?: {
       data: Variant[]
     }
@@ -42,22 +69,26 @@ export interface CartItem {
 export interface Order {
   id: number
   attributes: {
-    stripeSessionId: string
-    stripePaymentIntentId: string
+    stripeSessionId?: string | null
+    stripePaymentIntentId?: string | null
+    customerName: string
     email: string
+    phone?: string | null
+    companyName?: string | null
+    customerNotes?: string | null
     amountSubtotal: number
     amountTotal: number
     shippingAmount: number
     currency: string
-    shippingName: string
-    shippingAddressLine1: string
-    shippingAddressLine2: string | null
-    shippingCity: string
-    shippingState: string
-    shippingPostalCode: string
+    shippingName?: string | null
+    shippingAddressLine1?: string | null
+    shippingAddressLine2?: string | null
+    shippingCity?: string | null
+    shippingState?: string | null
+    shippingPostalCode?: string | null
     shippingCountry: string
     confirmationAccepted: boolean
-    status: 'pending' | 'paid' | 'failed' | 'refunded'
+    status: 'pending_review' | 'approved' | 'rejected' | 'awaiting_payment' | 'fulfilled' | 'cancelled'
     createdAt: string
     updatedAt: string
   }

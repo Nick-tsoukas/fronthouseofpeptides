@@ -5,18 +5,18 @@
       <img 
         src="https://images.unsplash.com/photo-1582719471384-894fbb16e074?w=1920&q=80" 
         alt="" 
-        class="absolute inset-0 w-full h-full object-cover opacity-30"
+        class="absolute inset-0 w-full h-full object-cover opacity-60"
       />
-      <div class="absolute inset-0 bg-gradient-to-b from-dark-950/70 via-dark-950/80 to-dark-950"></div>
-      <div class="absolute inset-0 bg-gradient-to-r from-dark-950/90 via-transparent to-dark-950/90"></div>
+      <div class="absolute inset-0 bg-gradient-to-b from-dark-950/40 via-dark-950/50 to-dark-950"></div>
+      <div class="absolute inset-0 bg-gradient-to-r from-dark-950/60 via-transparent to-dark-950/60"></div>
     </div>
 
     <!-- Molecular Grid Overlay -->
     <div class="absolute inset-0">
       <div class="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.03)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
       <!-- Subtle glow accents -->
-      <div class="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-cyan-500/10 rounded-full blur-[150px]"></div>
-      <div class="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-teal-500/8 rounded-full blur-[120px]"></div>
+      <div class="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-cyan-500/20 rounded-full blur-[150px]"></div>
+      <div class="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-teal-500/15 rounded-full blur-[120px]"></div>
     </div>
 
     <!-- Noise texture -->

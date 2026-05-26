@@ -21,10 +21,10 @@
         </div>
       </div>
 
-      <!-- Product Not Found -->
+      <!-- Product Not Found / Inactive -->
       <div v-else-if="!product" class="text-center py-16">
-        <h1 class="text-2xl font-bold text-white mb-4">Product Not Found</h1>
-        <p class="text-dark-400 mb-8">The product you're looking for doesn't exist.</p>
+        <h1 class="text-2xl font-bold text-white mb-4">Product Unavailable</h1>
+        <p class="text-dark-400 mb-8">This product doesn't exist or is no longer available.</p>
         <NuxtLink to="/" class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-lg transition-colors">
           Back to Shop
         </NuxtLink>
@@ -32,13 +32,19 @@
 
       <!-- Product Details -->
       <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        <!-- Product Image (Gradient Placeholder) -->
+        <!-- Product Image -->
         <div class="relative aspect-square rounded-xl overflow-hidden">
+          <img
+            v-if="imageUrl"
+            :src="imageUrl"
+            :alt="product.attributes.name"
+            class="absolute inset-0 w-full h-full object-cover"
+          />
           <div
+            v-else
             class="absolute inset-0"
             :style="{ background: gradientStyle }"
           ></div>
-          <!-- Badge -->
           <div class="absolute top-4 left-4">
             <span class="px-3 py-1.5 bg-primary-500/90 text-white text-sm font-medium rounded">
               {{ product.attributes.badgeText || 'Research Use Only' }}
@@ -75,32 +81,50 @@
             No variants available for this product.
           </div>
 
-          <!-- Quantity Selector -->
+          <!-- Stock status -->
           <div v-if="selectedVariant">
-            <QuantitySelector v-model="quantity" />
+            <p v-if="isOutOfStock" class="text-red-400 text-sm font-medium">
+              Out of stock
+            </p>
+            <p v-else-if="isLowStock" class="text-yellow-400 text-sm font-medium">
+              Only {{ selectedVariantInventory }} left in stock
+            </p>
+          </div>
+
+          <!-- Quantity Selector -->
+          <div v-if="selectedVariant && !isOutOfStock">
+            <QuantitySelector
+              v-model="quantity"
+              :max="quantityMax"
+            />
           </div>
 
           <!-- Add to Cart Button -->
           <button
             @click="handleAddToCart"
-            :disabled="!selectedVariant"
+            :disabled="!selectedVariant || isOutOfStock"
             class="w-full py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-lg transition-all duration-200 text-lg"
           >
-            {{ selectedVariant ? 'Add to Cart' : 'Select a Variant' }}
+            <span v-if="!selectedVariant">Select a Variant</span>
+            <span v-else-if="isOutOfStock">Out of Stock</span>
+            <span v-else>Add to Cart</span>
           </button>
 
           <!-- Research Notice -->
           <div class="bg-dark-800/50 rounded-lg p-4 border border-dark-700">
             <p class="text-dark-400 text-sm">
-              <span class="text-primary-400 font-semibold">Research Use Only</span> — 
+              <span class="text-primary-400 font-semibold">Research Use Only</span> —
               This product is intended for laboratory research purposes only. Not for human or veterinary use.
             </p>
           </div>
 
-          <!-- Description -->
+          <!-- Description (rendered Markdown) -->
           <div v-if="product.attributes.description" class="prose prose-invert max-w-none">
             <h3 class="text-lg font-semibold text-white mb-3">Description</h3>
-            <div class="text-dark-300 whitespace-pre-wrap">{{ product.attributes.description }}</div>
+            <div
+              class="text-dark-300 prose-headings:text-white prose-strong:text-white prose-a:text-primary-400"
+              v-html="renderedDescription"
+            ></div>
           </div>
         </div>
       </div>
@@ -110,16 +134,19 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { marked } from 'marked'
 import type { Variant } from '~/types'
 import { useProducts } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cart'
 import { useCompliance } from '~/composables/useCompliance'
-import { CURRENCY } from '~/constants'
+import { useStrapiMedia } from '~/composables/useStrapiMedia'
+import { CURRENCY, CART } from '~/constants'
 
 const route = useRoute()
 const { fetchProductBySlug } = useProducts()
 const cartStore = useCartStore()
 const { requireConfirmation } = useCompliance()
+const { getStrapiMediaUrl } = useStrapiMedia()
 
 const slug = computed(() => route.params.slug as string)
 
@@ -131,8 +158,11 @@ const { data: product, pending } = await useAsyncData(
 const selectedVariant = ref<Variant | null>(null)
 const quantity = ref(1)
 
-const activeVariants = computed(() => {
-  return product.value?.attributes.variants?.data.filter(v => v.attributes.active) || []
+// ── Image ────────────────────────────────────────────────────────────────────
+const imageUrl = computed(() => {
+  const raw = product.value?.attributes.image?.data?.attributes
+  const url = raw?.formats?.large?.url || raw?.formats?.medium?.url || raw?.url
+  return getStrapiMediaUrl(url)
 })
 
 const gradientStyle = computed(() => {
@@ -142,29 +172,54 @@ const gradientStyle = computed(() => {
   return `linear-gradient(135deg, hsl(${hue1}, 70%, 30%) 0%, hsl(${hue2}, 60%, 20%) 100%)`
 })
 
+// ── Variants & inventory ─────────────────────────────────────────────────────
+const activeVariants = computed(() =>
+  product.value?.attributes.variants?.data.filter(v => v.attributes.active) || []
+)
+
+const selectedVariantInventory = computed<number | null>(() =>
+  selectedVariant.value?.attributes.inventory ?? null
+)
+
+const isOutOfStock = computed(() =>
+  selectedVariantInventory.value !== null && selectedVariantInventory.value <= 0
+)
+
+const isLowStock = computed(() =>
+  selectedVariantInventory.value !== null && selectedVariantInventory.value > 0 && selectedVariantInventory.value <= 5
+)
+
+const quantityMax = computed(() => {
+  if (selectedVariantInventory.value === null) return CART.MAX_QUANTITY
+  return Math.min(selectedVariantInventory.value, CART.MAX_QUANTITY)
+})
+
+// ── Price ────────────────────────────────────────────────────────────────────
+const formatPrice = (price: number) => `${CURRENCY.SYMBOL}${price.toFixed(2)}`
+
 const priceRange = computed(() => {
   if (activeVariants.value.length === 0) return 'N/A'
-  
   const prices = activeVariants.value.map(v => v.attributes.price)
   const min = Math.min(...prices)
   const max = Math.max(...prices)
-  
-  if (min === max) {
-    return formatPrice(min)
-  }
-  return `${formatPrice(min)} - ${formatPrice(max)}`
+  return min === max ? formatPrice(min) : `${formatPrice(min)} – ${formatPrice(max)}`
 })
 
-const formatPrice = (price: number) => {
-  return `${CURRENCY.SYMBOL}${price.toFixed(2)}`
-}
+// ── Description (Markdown) ───────────────────────────────────────────────────
+const renderedDescription = computed(() => {
+  const raw = product.value?.attributes.description
+  if (!raw) return ''
+  return marked.parse(raw) as string
+})
 
+// ── Actions ──────────────────────────────────────────────────────────────────
 const selectVariant = (variant: Variant) => {
   selectedVariant.value = variant
+  quantity.value = 1
 }
 
 const handleAddToCart = () => {
-  if (!product.value || !selectedVariant.value) return
+  if (!product.value || !selectedVariant.value || isOutOfStock.value) return
 
   requireConfirmation(() => {
     cartStore.addItem({
@@ -178,10 +233,33 @@ const handleAddToCart = () => {
   })
 }
 
-// Auto-select first variant if only one exists
+// Auto-select first active variant when only one exists
 watch(activeVariants, (variants) => {
   if (variants.length === 1 && !selectedVariant.value) {
     selectedVariant.value = variants[0]
   }
 }, { immediate: true })
+
+// Reset quantity when variant changes to avoid exceeding new stock
+watch(selectedVariant, () => {
+  quantity.value = 1
+})
+
+// ── SEO ──────────────────────────────────────────────────────────────────────
+const ogImage = computed(() => imageUrl.value || '')
+const seoTitle = computed(() =>
+  product.value ? `${product.value.attributes.name} | House of Peptides` : 'House of Peptides'
+)
+const seoDescription = computed(() =>
+  product.value?.attributes.shortDescription || 'Research-grade peptide for laboratory use.'
+)
+
+useSeoMeta({
+  title: seoTitle,
+  description: seoDescription,
+  ogTitle: seoTitle,
+  ogDescription: seoDescription,
+  ogImage: ogImage,
+  ogType: 'website',
+})
 </script>

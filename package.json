@@ -1,5 +1,5 @@
 {
-  "name": "houseofpeptides-frontend",
+  "name": "quantumbiopeptides-frontend",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@pinia/nuxt": "^0.5.1",
+    "@types/nodemailer": "^8.0.0",
+    "marked": "^18.0.4",
+    "nodemailer": "^8.0.8",
     "nuxt": "^3.11.2",
     "pinia": "^2.1.7",
     "stripe": "^14.21.0",

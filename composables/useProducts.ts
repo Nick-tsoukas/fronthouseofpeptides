@@ -18,7 +18,7 @@ export function useProducts() {
 
     try {
       const response = await $fetch<StrapiResponse<Product[]>>(
-        `${strapiUrl}/api/products?populate=variants`
+        `${strapiUrl}/api/products?filters[active][$eq]=true&populate[variants]=*&populate[image]=*`
       )
       return response.data || []
     } catch (error) {
@@ -36,7 +36,7 @@ export function useProducts() {
 
     try {
       const response = await $fetch<StrapiResponse<Product[]>>(
-        `${strapiUrl}/api/products?filters[slug][$eq]=${slug}&populate=variants`
+        `${strapiUrl}/api/products?filters[slug][$eq]=${slug}&filters[active][$eq]=true&populate[variants]=*&populate[image]=*`
       )
       return response.data?.[0] || null
     } catch (error) {
