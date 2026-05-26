@@ -30,8 +30,8 @@
           <!-- Image -->
           <div class="w-20 h-20 rounded-lg bg-dark-800 flex-shrink-0 overflow-hidden border border-dark-700">
             <img
-              v-if="product.imageUrl"
-              :src="imageUrl(product.imageUrl)"
+              v-if="previewUrl || product.imageUrl"
+              :src="previewUrl || imageUrl(product.imageUrl)"
               :alt="product.name"
               class="w-full h-full object-cover"
             />
@@ -54,6 +54,76 @@
                 {{ product.badgeText }}
               </span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Product Image ──────────────────────────────────────── -->
+      <div class="bg-dark-900 border border-dark-700 rounded-xl p-5">
+        <h2 class="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-4">Product Image</h2>
+
+        <div class="flex flex-col sm:flex-row gap-4 items-start">
+          <!-- Preview -->
+          <div
+            class="relative w-32 h-32 rounded-xl bg-dark-800 border-2 border-dashed border-dark-600 overflow-hidden flex-shrink-0 cursor-pointer hover:border-primary-500 transition-colors group"
+            @click="triggerFilePicker"
+          >
+            <img
+              v-if="previewUrl || product.imageUrl"
+              :src="previewUrl || imageUrl(product.imageUrl)"
+              alt="Product image"
+              class="w-full h-full object-cover"
+            />
+            <div v-else class="w-full h-full flex flex-col items-center justify-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-dark-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span class="text-dark-600 text-xs">No image</span>
+            </div>
+            <!-- overlay on hover -->
+            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <span class="text-white text-xs font-medium">Change</span>
+            </div>
+          </div>
+
+          <!-- Controls -->
+          <div class="flex-1">
+            <input
+              ref="fileInput"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              class="hidden"
+              @change="onFileSelected"
+            />
+            <p class="text-dark-400 text-sm mb-3">JPEG, PNG, WebP or GIF · Max 5 MB</p>
+
+            <div class="flex flex-wrap gap-3 items-center">
+              <button
+                class="px-4 py-2.5 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-lg transition-colors"
+                @click="triggerFilePicker"
+              >
+                Choose File
+              </button>
+              <button
+                v-if="selectedFile"
+                :disabled="isUploadingImage"
+                class="px-4 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors"
+                @click="uploadImage"
+              >
+                {{ isUploadingImage ? 'Uploading…' : 'Upload Image' }}
+              </button>
+              <button
+                v-if="selectedFile && !isUploadingImage"
+                class="px-4 py-2 text-dark-400 hover:text-white text-sm transition-colors"
+                @click="clearSelection"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <p v-if="selectedFile && !isUploadingImage" class="text-dark-500 text-xs mt-2">{{ selectedFile.name }} ({{ (selectedFile.size / 1024).toFixed(0) }} KB)</p>
+            <p v-if="imageUploadSuccess" class="text-green-400 text-sm mt-2">Image updated ✓</p>
+            <p v-if="imageUploadError" class="text-red-400 text-sm mt-2">{{ imageUploadError }}</p>
           </div>
         </div>
       </div>
@@ -242,6 +312,58 @@ const { data: product, pending, error: fetchError, refresh } = await useFetch<an
   `/api/owner/products/${id}`,
   { headers: useRequestHeaders(['cookie']) }
 )
+
+// ── Image upload ───────────────────────────────────────────────────
+const fileInput = ref<HTMLInputElement | null>(null)
+const selectedFile = ref<File | null>(null)
+const previewUrl = ref<string>('')
+const isUploadingImage = ref(false)
+const imageUploadSuccess = ref(false)
+const imageUploadError = ref('')
+
+function triggerFilePicker() {
+  fileInput.value?.click()
+}
+
+function onFileSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  selectedFile.value = file
+  previewUrl.value = URL.createObjectURL(file)
+  imageUploadSuccess.value = false
+  imageUploadError.value = ''
+}
+
+function clearSelection() {
+  selectedFile.value = null
+  previewUrl.value = ''
+  imageUploadError.value = ''
+  if (fileInput.value) fileInput.value.value = ''
+}
+
+async function uploadImage() {
+  if (!selectedFile.value) return
+  isUploadingImage.value = true
+  imageUploadSuccess.value = false
+  imageUploadError.value = ''
+  try {
+    const form = new FormData()
+    form.append('files', selectedFile.value)
+    await $fetch(`/api/owner/products/${id}/image`, {
+      method: 'POST',
+      body: form,
+    })
+    imageUploadSuccess.value = true
+    clearSelection()
+    await refresh()
+    setTimeout(() => { imageUploadSuccess.value = false }, 3000)
+  } catch (err: any) {
+    imageUploadError.value = err.data?.message || 'Upload failed.'
+  } finally {
+    isUploadingImage.value = false
+  }
+}
 
 // ── Product draft ──────────────────────────────────────────────────
 const productDraft = reactive({
