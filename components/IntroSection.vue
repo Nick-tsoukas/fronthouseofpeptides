@@ -18,7 +18,7 @@
             <span class="bg-gradient-to-r from-primary-400 to-emerald-400 bg-clip-text text-transparent">Serious Research</span>
           </h2>
           <p class="text-lg text-dark-300 mb-8 leading-relaxed">
-            At House of Peptides, we understand that your research demands the highest standards. Every compound in our catalog undergoes rigorous third-party testing, ensuring consistent purity levels of 99% or higher.
+            At Quantum Bio Peptides, we understand that your research demands the highest standards. Every compound in our catalog undergoes rigorous third-party testing, ensuring consistent purity levels of 99% or higher.
           </p>
           <p class="text-dark-400 mb-10 leading-relaxed">
             We partner exclusively with ISO-certified laboratories and maintain strict cold-chain protocols from synthesis to delivery. Your research deserves nothing less than excellence.

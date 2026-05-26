@@ -24,6 +24,13 @@
             >
               Orders
             </NuxtLink>
+            <NuxtLink
+              to="/owner/products"
+              class="text-sm text-dark-300 hover:text-white transition-colors"
+              active-class="text-white font-medium"
+            >
+              Products
+            </NuxtLink>
           </nav>
         </div>
         <button

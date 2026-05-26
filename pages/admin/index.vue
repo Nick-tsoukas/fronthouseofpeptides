@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="mb-8">
       <h1 class="text-2xl font-bold text-white">Dashboard</h1>
-      <p class="text-dark-400 mt-1">Welcome to the House of Peptides admin panel</p>
+      <p class="text-dark-400 mt-1">Welcome to the Quantum Bio Peptides admin panel</p>
     </div>
 
     <!-- Stats Grid -->
@@ -219,7 +219,7 @@ onMounted(async () => {
     )
     const orders = ordersRes.data || []
     stats.value.orders = ordersRes.meta?.pagination?.total || orders.length
-    stats.value.pendingOrders = orders.filter(o => o.attributes.status === 'pending' || o.attributes.status === 'paid').length
+    stats.value.pendingOrders = orders.filter(o => o.attributes.status === 'pending_review' || o.attributes.status === 'approved').length
     recentOrders.value = orders.slice(0, 5)
   } catch (error) {
     console.error('Error fetching dashboard data:', error)

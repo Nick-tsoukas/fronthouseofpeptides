@@ -5,7 +5,7 @@
         <!-- Brand -->
         <NuxtLink to="/" class="flex items-center gap-2">
           <div class="w-8 h-8 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-lg"></div>
-          <span class="text-lg font-semibold text-white">House of Peptides</span>
+          <span class="text-lg font-semibold text-white">Quantum Bio Peptides</span>
         </NuxtLink>
 
         <!-- Navigation Links + Cart -->

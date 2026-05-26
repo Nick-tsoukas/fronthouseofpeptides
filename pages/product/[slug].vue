@@ -248,7 +248,7 @@ watch(selectedVariant, () => {
 // ── SEO ──────────────────────────────────────────────────────────────────────
 const ogImage = computed(() => imageUrl.value || '')
 const seoTitle = computed(() =>
-  product.value ? `${product.value.attributes.name} | House of Peptides` : 'House of Peptides'
+  product.value ? `${product.value.attributes.name} | Quantum Bio Peptides` : 'Quantum Bio Peptides'
 )
 const seoDescription = computed(() =>
   product.value?.attributes.shortDescription || 'Research-grade peptide for laboratory use.'

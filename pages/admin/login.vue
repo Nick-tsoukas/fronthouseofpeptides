@@ -5,7 +5,7 @@
       <div class="text-center mb-8">
         <div class="w-16 h-16 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-xl mx-auto mb-4"></div>
         <h1 class="text-2xl font-bold text-white">Admin Login</h1>
-        <p class="text-dark-400 mt-2">House of Peptides</p>
+        <p class="text-dark-400 mt-2">Quantum Bio Peptides</p>
       </div>
 
       <!-- Login Form -->

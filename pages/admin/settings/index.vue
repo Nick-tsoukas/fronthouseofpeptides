@@ -20,7 +20,7 @@
               id="storeName"
               v-model="settings.storeName"
               type="text"
-              placeholder="House of Peptides"
+              placeholder="Quantum Bio Peptides"
               class="w-full px-4 py-3 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-cyan-500 transition-colors"
             />
           </div>
@@ -201,7 +201,7 @@ const { logout: adminLogout } = useAdmin()
 const STORAGE_KEY = 'houseofpeptides_settings'
 
 const defaultSettings = {
-  storeName: 'House of Peptides',
+  storeName: 'Quantum Bio Peptides',
   contactEmail: '',
   announcementBanner: '',
   shippingMessage: 'Orders ship within 1-2 business days. US shipping only.',
