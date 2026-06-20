@@ -51,21 +51,13 @@
       </div>
 
       <!-- Actions -->
-      <div class="flex gap-2">
+      <div class="flex">
         <NuxtLink
           :to="`/product/${product.attributes.slug}`"
-          class="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white text-sm font-medium rounded-lg text-center transition-all duration-200 border border-white/5 hover:border-white/10"
+          class="w-full px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold rounded-lg text-center transition-colors duration-200"
         >
           View Details
         </NuxtLink>
-        <button
-          v-if="hasActiveVariants"
-          @click="handleQuickAdd"
-          :disabled="allOutOfStock"
-          class="flex-1 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 disabled:bg-dark-700 disabled:text-dark-500 text-white text-sm font-semibold rounded-lg transition-colors duration-200"
-        >
-          {{ allOutOfStock ? 'Out of Stock' : 'Quick Add' }}
-        </button>
       </div>
     </div>
   </div>

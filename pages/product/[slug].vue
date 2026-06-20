@@ -233,9 +233,9 @@ const handleAddToCart = () => {
   })
 }
 
-// Auto-select first active variant when only one exists
+// Auto-select first active variant when variants are available
 watch(activeVariants, (variants) => {
-  if (variants.length === 1 && !selectedVariant.value) {
+  if (variants.length > 0 && !selectedVariant.value) {
     selectedVariant.value = variants[0]
   }
 }, { immediate: true })
