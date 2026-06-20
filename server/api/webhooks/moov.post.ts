@@ -82,11 +82,17 @@ export default defineEventHandler(async (event: H3Event) => {
     })
   }
 
-  const eventType = payload?.event?.type || payload?.eventType || 'unknown'
-  const eventId = payload?.event?.eventID || payload?.eventID || webhookId
-  const transferId = payload?.transfer?.transferID || payload?.transferID || undefined
-  const accountId = payload?.account?.accountID || payload?.accountID || payload?.transfer?.accountID || undefined
-  const status = payload?.transfer?.status || payload?.status || payload?.paymentMethod?.status || undefined
+  const eventId = payload?.eventID ?? payload?.eventId ?? webhookId
+  const eventType = typeof payload?.type === 'string' ? payload.type : 'unknown'
+
+  // Extract safe fields from payload.data when present
+  const data = payload?.data || {}
+  const transferId = data?.transferID || data?.transferId || undefined
+  const accountId = data?.accountID || data?.accountId || undefined
+  const status = data?.status || data?.transferStatus || undefined
+
+  // Debug: log only top-level keys, never the full payload or headers
+  console.log('Moov webhook payload keys', Object.keys(payload))
 
   // Log only safe fields
   console.log('Moov webhook received', {
