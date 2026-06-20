@@ -8,6 +8,12 @@ export default defineNuxtConfig({
 
   ssr: true,
 
+  vue: {
+    compilerOptions: {
+      isCustomElement: (tag) => tag.startsWith('moov-'),
+    },
+  },
+
   modules: [
     '@nuxtjs/tailwindcss',
     '@pinia/nuxt',

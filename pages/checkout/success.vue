@@ -55,15 +55,15 @@
         </div>
 
         <div class="border-t border-dark-700 pt-6">
-          <button
-            disabled
-            class="w-full py-4 bg-primary-500/50 text-white/70 font-semibold rounded-lg cursor-not-allowed flex items-center justify-center gap-2"
+          <NuxtLink
+            :to="paymentLink"
+            class="w-full block py-4 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-lg text-center transition-colors flex items-center justify-center gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
             Continue to test payment
-          </button>
+          </NuxtLink>
           <p class="text-dark-500 text-xs text-center mt-3">
             Payment collection will be enabled after the pending order test succeeds.
           </p>
@@ -93,6 +93,15 @@ const orderNumber = computed(() => route.query.orderNumber as string || '')
 const email = computed(() => route.query.email as string || '')
 const totalCents = computed(() => Number(route.query.totalCents) || 0)
 const paymentStatus = computed(() => route.query.paymentStatus as string || 'pending')
+const orderId = computed(() => route.query.orderId as string || '')
+const checkoutSessionToken = computed(() => route.query.t as string || '')
+
+const paymentLink = computed(() => {
+  return `/checkout/payment?orderId=${orderId.value}` +
+    `&orderNumber=${encodeURIComponent(orderNumber.value)}` +
+    `&totalCents=${totalCents.value}` +
+    `&t=${encodeURIComponent(checkoutSessionToken.value)}`
+})
 
 const displayPaymentStatus = computed(() => {
   const status = paymentStatus.value

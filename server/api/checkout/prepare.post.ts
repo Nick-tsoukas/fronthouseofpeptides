@@ -1,4 +1,5 @@
 import { type H3Event } from 'h3'
+import { generateCheckoutSessionToken, hashToken } from '~/server/utils/moov'
 
 const CURRENCY_CODE = 'USD'
 const SHIPPING_CENTS = 0
@@ -98,6 +99,21 @@ export default defineEventHandler(async (event: H3Event) => {
     )
     const existing = existingResponse.data?.[0]
     if (existing) {
+      const existingCheckoutSessionToken = generateCheckoutSessionToken()
+      const existingCheckoutSessionTokenHash = hashToken(existingCheckoutSessionToken)
+
+      try {
+        await $fetch(`${strapiUrl}/api/orders/${existing.id}`, {
+          method: 'PUT',
+          headers: authHeaders,
+          body: {
+            data: { checkoutSessionTokenHash: existingCheckoutSessionTokenHash },
+          },
+        })
+      } catch (err: any) {
+        console.error('Failed to refresh checkout session token hash:', err?.message || err)
+      }
+
       return {
         ok: true,
         orderId: existing.id,
@@ -108,6 +124,7 @@ export default defineEventHandler(async (event: H3Event) => {
         taxCents: existing.attributes.taxCents ?? TAX_CENTS,
         totalCents: existing.attributes.totalCents,
         paymentStatus: existing.attributes.paymentStatus || 'pending',
+        checkoutSessionToken: existingCheckoutSessionToken,
       }
     }
   } catch (err: any) {
@@ -190,6 +207,8 @@ export default defineEventHandler(async (event: H3Event) => {
 
   const totalCents = subtotalCents + SHIPPING_CENTS + TAX_CENTS
   const orderNumber = generateOrderNumber()
+  const checkoutSessionToken = generateCheckoutSessionToken()
+  const checkoutSessionTokenHash = hashToken(checkoutSessionToken)
 
   // ── Create pending Order in Strapi ──────────────────────────────────────
   let orderId: number
@@ -219,6 +238,7 @@ export default defineEventHandler(async (event: H3Event) => {
             idempotencyKey,
             inventoryCommitted: false,
             status: 'awaiting_payment',
+            checkoutSessionTokenHash,
           },
         },
       }
@@ -269,5 +289,6 @@ export default defineEventHandler(async (event: H3Event) => {
     taxCents: TAX_CENTS,
     totalCents,
     paymentStatus: 'pending',
+    checkoutSessionToken,
   }
 })

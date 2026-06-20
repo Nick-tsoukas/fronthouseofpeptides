@@ -213,6 +213,7 @@ const handleSubmit = async () => {
       taxCents: number
       totalCents: number
       paymentStatus: string
+      checkoutSessionToken: string
     }>('/api/checkout/prepare', {
       method: 'POST',
       body: {
@@ -233,7 +234,8 @@ const handleSubmit = async () => {
       `&orderNumber=${encodeURIComponent(response.orderNumber)}` +
       `&email=${encodeURIComponent(form.email.trim())}` +
       `&totalCents=${response.totalCents}` +
-      `&paymentStatus=${encodeURIComponent(response.paymentStatus)}`
+      `&paymentStatus=${encodeURIComponent(response.paymentStatus)}` +
+      `&t=${encodeURIComponent(response.checkoutSessionToken)}`
     )
   } catch (err: any) {
     console.error('Checkout prepare error:', err)
