@@ -37,6 +37,7 @@ export default defineNuxtConfig({
     moovSecretKey: process.env.MOOV_SECRET_KEY || '',
     moovAccountId: process.env.MOOV_ACCOUNT_ID || '',
     moovMode: process.env.MOOV_MODE || 'test',
+    moovWebhookSecret: process.env.MOOV_WEBHOOK_SECRET || '',
 
     // Public keys (available on client)
     public: {
