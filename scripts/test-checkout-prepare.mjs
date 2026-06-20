@@ -87,8 +87,7 @@ async function main() {
 
   // 1. Valid request creates a pending order
   const valid = await prepare({
-    variantId,
-    quantity,
+    items: [{ variantId, quantity }],
     firstName: 'Test',
     lastName: 'User',
     email,
@@ -107,8 +106,7 @@ async function main() {
 
   // 2. Altered prices from browser are ignored
   const tampered = await prepare({
-    variantId,
-    quantity,
+    items: [{ variantId, quantity }],
     firstName: 'Test',
     lastName: 'User',
     email: `tamper-${Date.now()}@example.com`,
@@ -124,8 +122,7 @@ async function main() {
 
   // 3. Invalid variant ID fails
   const invalidVariant = await prepare({
-    variantId: 999999,
-    quantity,
+    items: [{ variantId: 999999, quantity }],
     firstName: 'Test',
     lastName: 'User',
     email: `invalid-${Date.now()}@example.com`,
@@ -135,8 +132,7 @@ async function main() {
 
   // 4. Excessive quantity fails
   const excessiveQuantity = await prepare({
-    variantId,
-    quantity: 999999,
+    items: [{ variantId, quantity: 999999 }],
     firstName: 'Test',
     lastName: 'User',
     email: `qty-${Date.now()}@example.com`,
@@ -146,8 +142,7 @@ async function main() {
 
   // 5. Repeated idempotency key does not duplicate order
   const duplicate = await prepare({
-    variantId,
-    quantity: 1,
+    items: [{ variantId, quantity: 1 }],
     firstName: 'Different',
     lastName: 'Name',
     email: `different-${Date.now()}@example.com`,

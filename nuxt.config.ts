@@ -43,6 +43,7 @@ export default defineNuxtConfig({
     public: {
       strapiUrl: process.env.STRAPI_URL || 'http://localhost:1337',
       appUrl: process.env.APP_URL || 'http://localhost:3000',
+      moovMode: process.env.MOOV_MODE || 'test',
     }
   },
 

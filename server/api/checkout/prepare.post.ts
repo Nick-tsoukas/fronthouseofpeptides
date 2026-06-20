@@ -4,9 +4,13 @@ const CURRENCY_CODE = 'USD'
 const SHIPPING_CENTS = 0
 const TAX_CENTS = 0
 
-interface RequestBody {
+interface CartLine {
   variantId?: number
   quantity?: number
+}
+
+interface RequestBody {
+  items?: CartLine[]
   firstName?: string
   lastName?: string
   email?: string
@@ -42,14 +46,27 @@ export default defineEventHandler(async (event: H3Event) => {
   // ── Validate required input ────────────────────────────────────────────────
   const errors: string[] = []
 
-  const variantId = Number(body?.variantId)
-  if (!Number.isInteger(variantId) || variantId <= 0) {
-    errors.push('A valid variant ID is required.')
+  const rawItems = Array.isArray(body?.items) ? body.items : []
+  if (rawItems.length === 0) {
+    errors.push('Your cart is empty.')
   }
 
-  const quantity = Number(body?.quantity)
-  if (!Number.isInteger(quantity) || quantity <= 0) {
-    errors.push('Quantity must be a positive integer.')
+  const items = rawItems
+    .map((item) => ({
+      variantId: Number(item?.variantId),
+      quantity: Number(item?.quantity),
+    }))
+    .filter((item) => Number.isInteger(item.variantId) && item.variantId > 0)
+
+  if (items.length === 0 && rawItems.length > 0) {
+    errors.push('All cart items are invalid.')
+  }
+
+  for (const item of items) {
+    if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+      errors.push('Quantity must be a positive integer for every item.')
+      break
+    }
   }
 
   const firstName = (body?.firstName || '').trim()
@@ -97,53 +114,81 @@ export default defineEventHandler(async (event: H3Event) => {
     console.error('Idempotency lookup failed:', err?.message || err)
   }
 
-  // ── Load variant and associated product from Strapi ───────────────────────
-  let variant: any
-  let product: any
+  // ── Load variants and associated products from Strapi ────────────────────
+  const variantIds = items.map((item) => item.variantId)
+  const variantFilter = variantIds.map((id) => `filters[id][$in]=${id}`).join('&')
+
+  let strapiVariants: any[] = []
 
   try {
-    const variantResponse = await $fetch<{ data: any }>(
-      `${strapiUrl}/api/variants/${variantId}?populate=product`,
+    const variantsResponse = await $fetch<{ data: any[] }>(
+      `${strapiUrl}/api/variants?${variantFilter}&populate=product`,
       { headers: authHeaders }
     )
-    variant = variantResponse.data
-    product = variant?.attributes?.product?.data
+    strapiVariants = variantsResponse.data || []
   } catch (err: any) {
     console.error('Variant load failed:', err?.message || err)
     throw createError({ statusCode: 502, message: 'Could not reach product catalog. Please try again.' })
   }
 
-  if (!variant) {
-    throw createError({ statusCode: 400, message: 'Selected variant could not be found.' })
-  }
+  const variantMap = new Map(strapiVariants.map((v) => [v.id, v]))
 
-  if (!product?.attributes?.active) {
-    throw createError({ statusCode: 400, message: 'This product is no longer available.' })
-  }
+  // ── Validate every item against server-loaded data ───────────────────────
+  const stockErrors: string[] = []
+  const lineItems: any[] = []
+  let subtotalCents = 0
 
-  if (!variant.attributes?.active) {
-    throw createError({ statusCode: 400, message: 'Selected variant is no longer available.' })
-  }
+  for (const item of items) {
+    const variant = variantMap.get(item.variantId)
+    if (!variant) {
+      stockErrors.push('One or more selected items could not be found in the catalog.')
+      continue
+    }
 
-  // ── Validate inventory ───────────────────────────────────────────────────
-  const inventory: number | null = variant.attributes?.inventory ?? null
-  if (inventory !== null && inventory < quantity) {
-    throw createError({
-      statusCode: 400,
-      message: `Only ${inventory} unit${inventory === 1 ? '' : 's'} available (requested ${quantity}).`,
+    const product = variant.attributes?.product?.data
+    if (!product?.attributes?.active) {
+      stockErrors.push(`"${variant.attributes?.name || 'Selected item'}" is no longer available.`)
+      continue
+    }
+
+    if (!variant.attributes?.active) {
+      stockErrors.push(`"${variant.attributes?.name || 'Selected item'}" is no longer available.`)
+      continue
+    }
+
+    const inventory: number | null = variant.attributes?.inventory ?? null
+    if (inventory !== null && inventory < item.quantity) {
+      stockErrors.push(
+        `"${variant.attributes?.name || 'Selected item'}" only has ${inventory} unit${inventory === 1 ? '' : 's'} available (requested ${item.quantity}).`
+      )
+      continue
+    }
+
+    const unitPrice = Number(variant.attributes?.price)
+    if (!unitPrice || unitPrice <= 0) {
+      stockErrors.push(`"${variant.attributes?.name || 'Selected item'}" has an invalid price.`)
+      continue
+    }
+
+    const unitPriceCents = toCents(unitPrice)
+    const lineTotalCents = unitPriceCents * item.quantity
+    subtotalCents += lineTotalCents
+
+    lineItems.push({
+      variant,
+      product,
+      quantity: item.quantity,
+      unitPrice,
+      unitPriceCents,
+      lineTotalCents,
     })
   }
 
-  // ── Calculate server-side totals in integer cents ─────────────────────────
-  const unitPrice = Number(variant.attributes?.price)
-  if (!unitPrice || unitPrice <= 0) {
-    throw createError({ statusCode: 400, message: 'Variant price is invalid.' })
+  if (stockErrors.length > 0) {
+    throw createError({ statusCode: 400, message: stockErrors.join(' ') })
   }
 
-  const unitPriceCents = toCents(unitPrice)
-  const subtotalCents = unitPriceCents * quantity
   const totalCents = subtotalCents + SHIPPING_CENTS + TAX_CENTS
-
   const orderNumber = generateOrderNumber()
 
   // ── Create pending Order in Strapi ──────────────────────────────────────
@@ -182,37 +227,37 @@ export default defineEventHandler(async (event: H3Event) => {
     createdOrderNumber = orderResponse.data.attributes.orderNumber
   } catch (err: any) {
     console.error('Order creation failed:', err?.message || err)
-    // Detect duplicate idempotency key race condition
     if (err?.response?.status === 400 && err?.data?.error?.message?.toLowerCase().includes('unique')) {
       throw createError({ statusCode: 409, message: 'Duplicate order request. Please try again.' })
     }
     throw createError({ statusCode: 502, message: 'Failed to create order. Please try again.' })
   }
 
-  // ── Create Order Item record ────────────────────────────────────────────
-  try {
-    await $fetch(`${strapiUrl}/api/order-items`, {
-      method: 'POST',
-      headers: { ...authHeaders, 'Content-Type': 'application/json' },
-      body: {
-        data: {
-          productNameSnapshot: product.attributes?.name || '',
-          variantNameSnapshot: variant.attributes?.name || '',
-          skuSnapshot: variant.attributes?.sku || '',
-          unitPriceSnapshot: unitPrice,
-          unitPriceCents,
-          lineTotalCents: subtotalCents,
-          quantity,
-          order: orderId,
-          product: product.id,
-          variant: variant.id,
+  // ── Create Order Item records ───────────────────────────────────────────
+  await Promise.all(
+    lineItems.map((item) =>
+      $fetch(`${strapiUrl}/api/order-items`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: {
+          data: {
+            productNameSnapshot: item.product.attributes?.name || '',
+            variantNameSnapshot: item.variant.attributes?.name || '',
+            skuSnapshot: item.variant.attributes?.sku || '',
+            unitPriceSnapshot: item.unitPrice,
+            unitPriceCents: item.unitPriceCents,
+            lineTotalCents: item.lineTotalCents,
+            quantity: item.quantity,
+            order: orderId,
+            product: item.product.id,
+            variant: item.variant.id,
+          },
         },
-      },
-    })
-  } catch (err: any) {
-    console.error('Order item creation failed:', err?.message || err)
-    // Best-effort: order exists without order item; owner will see it
-  }
+      }).catch((err: any) => {
+        console.error('Order item creation failed:', err?.message || err)
+      })
+    )
+  )
 
   return {
     ok: true,
