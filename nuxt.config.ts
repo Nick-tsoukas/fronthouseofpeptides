@@ -31,7 +31,13 @@ export default defineNuxtConfig({
     ownerOrderEmail: process.env.OWNER_ORDER_EMAIL || '',
     ownerAdminPassword: process.env.OWNER_ADMIN_PASSWORD || '',
     ownerSessionSecret: process.env.OWNER_SESSION_SECRET || 'changeme-dev-secret',
-    
+
+    // Moov (server-only — never expose in public)
+    moovPublicKey: process.env.MOOV_PUBLIC_KEY || '',
+    moovSecretKey: process.env.MOOV_SECRET_KEY || '',
+    moovAccountId: process.env.MOOV_ACCOUNT_ID || '',
+    moovMode: process.env.MOOV_MODE || 'test',
+
     // Public keys (available on client)
     public: {
       strapiUrl: process.env.STRAPI_URL || 'http://localhost:1337',
