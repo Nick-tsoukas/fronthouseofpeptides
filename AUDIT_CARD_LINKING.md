@@ -140,3 +140,102 @@ APP_URL=           # already in public config
 3. Run `node scripts/test-card-linking.mjs` from the Nuxt project root.
 4. Test the browser flow using the instructions in `MOOV_CARD_LINKING_TESTS.md`.
 5. Next isolated stage: payment capture / transfer creation.
+
+# Shipping, Confirmations, and Shippo Integration — Implementation Audit
+
+## Goal of This Stage
+
+Add complete shipping information, mandatory purchaser confirmations, Shippo address validation, test shipping rates, rate selection, and final server-calculated totals. The payment/card section remains disabled until a shipping rate is selected and the total is recalculated server-side.
+
+## What Was Implemented
+
+### Checkout Session Security
+
+- `server/utils/checkout-session.ts` sets a short-lived, HttpOnly, Secure (in production), SameSite=Strict, path `/api` cookie named `checkout_session`.
+- The plaintext checkout session token is no longer kept in localStorage/sessionStorage; it is exchanged once and removed from the URL.
+- `server/api/checkout/session.post.ts` performs a one-time exchange: validates the token hash against the order, sets the cookie, and returns safe order details.
+- `server/utils/checkout-session.ts` provides a reusable `validateCheckoutSession` helper used by `/api/checkout/session`, `/api/shipping/rates`, `/api/shipping/select-rate`, `/api/moov/card-session`, and `/api/moov/card-linked`.
+- All secure endpoints read the cookie first, and fall back to an explicit body token only during the transition period.
+
+### Shippo Server Helper
+
+- `server/utils/shippo.ts` is a server-only helper for `https://api.goshippo.com`.
+- It uses `Authorization: ShippoToken ${token}` and JSON request/response handling.
+- It does not log the token or return raw Shippo errors to the client.
+- It includes a `toCentsFromDecimal` helper that converts Shippo decimal-string amounts to integer cents without floating-point rounding errors.
+
+### Shippo Health Endpoint
+
+- `server/api/shippo/health.get.ts` makes a harmless authenticated request and returns only `{ ok: true, mode: "test", connected: true }`.
+
+### Order Schema Extensions
+
+File: `backhouseofpeptides/src/api/order/content-types/order/schema.json`
+
+Added fields:
+- `shippingFirstName`, `shippingLastName`, `shippingPhone`, `shippingAddress1`, `shippingAddress2`
+- `ageConfirmed`, `researchUseConfirmed`, `qualifiedPurchaserConfirmed`, `termsAccepted`, `verificationAcknowledged`
+- `attestationsAcceptedAt`, `termsVersion`, `researchAttestationVersion`
+- `shippoAddressToId`, `shippoShipmentId`, `shippoRateId`
+- `shippingCarrier`, `shippingService`, `shippingDeliveryDays`, `shippingCostCents`, `discountCents`
+- `shippingStatus` (enum: `not_quoted`, `quoted`, `selected`, `label_purchased`, `shipped`, `delivered`, `cancelled`)
+
+### Shipping Rates Endpoint
+
+`server/api/shipping/rates.post.ts`:
+- Validates the secure checkout session.
+- Loads the pending order and rejects unauthorized, expired, paid, or cancelled orders.
+- Validates contact/shipping fields and requires all five confirmations as literal booleans.
+- Creates and validates the destination address via Shippo.
+- Uses the configured private ship-from address and default parcel (6x4x2 in, 6 oz).
+- Creates a Shippo Shipment with `address_from`, `address_to`, `parcels`, and the order number as safe metadata.
+- Reuses the existing Shippo shipment when the order is already `quoted` to prevent duplicate Shippo objects from double-clicks.
+- Stores the normalized address and Shippo IDs (`shippoAddressToId`, `shippoShipmentId`).
+- Sets `shippingStatus` to `quoted`, sets `attestationsAcceptedAt` server-side, and sets `termsVersion` and `researchAttestationVersion` to `2026-06-20`.
+- Returns only sanitized USD rates with `rateId`, `carrier`, `service`, `serviceToken`, `amountCents`, `currency`, `deliveryDays`, `test`.
+
+### Rate Selection Endpoint
+
+`server/api/shipping/select-rate.post.ts`:
+- Validates the checkout session and loads the order.
+- Accepts only `rateId` from the browser.
+- Retrieves the stored Shippo Shipment and verifies the rate belongs to it.
+- Ignores any browser-supplied shipping amount, carrier, service, or total.
+- Stores `shippoRateId`, `shippingCarrier`, `shippingService`, `shippingDeliveryDays`, `shippingCostCents`.
+- Sets `shippingStatus` to `selected`.
+- Recalculates `totalCents = subtotalCents + shippingCostCents + taxCents - discountCents` server-side and persists it.
+- Returns only the verified selected rate and the updated totals.
+
+### Frontend Checkout Changes
+
+- `pages/checkout.vue` collects contact information (first/last name, email, phone), full US shipping address, and all five mandatory purchaser confirmations. Primary action is now **Get Shipping Rates**.
+- `pages/checkout/success.vue` exchanges the query token for the cookie, removes the `t` parameter from the URL, fetches Shippo rates, lets the user select a rate, displays the updated subtotal/shipping/tax/final total, and only enables the payment button when `shippingStatus` is `selected`.
+- `pages/checkout/payment.vue` relies on the cookie for session validation and displays a blocking message if shipping is not yet selected. The Moov card-linking flow is preserved.
+- `server/api/moov/card-session.post.ts` and `server/api/moov/card-linked.post.ts` now use the shared `validateCheckoutSession` helper and can read the cookie or a fallback body token.
+
+### Configuration
+
+- `nuxt.config.ts` adds all Shippo environment variables to server-only `runtimeConfig` and exposes `shippoMode` publicly.
+- `.env.example` documents Moov and Shippo environment variables.
+
+### Testing Artifacts
+
+- `MOOV_CARD_LINKING_TESTS.md` — browser-only test steps for the Moov card-linking flow.
+- `SHIPPING_CHECKOUT_TESTS.md` — browser-only test steps for the secure checkout session, shipping address validation, Shippo rate selection, and payment gating.
+- This audit file.
+
+## Security and Idempotency Notes
+
+- `SHIPPO_API_TOKEN` is never exposed to the browser or logged.
+- Browser-supplied prices, shipping costs, and totals are ignored.
+- No shipping label is purchased; no Moov transfer is created; the order is not marked paid; inventory is not reduced.
+- Rate buttons disable while requests run; duplicate Shippo shipments are prevented by reusing the existing shipment when the order is already `quoted`.
+- The pending-order idempotency behavior in `/api/checkout/prepare` is preserved.
+- Existing Moov card-linking behavior is preserved.
+
+## Action Required
+
+1. Restart/rebuild Strapi so the new Order schema columns are live.
+2. Run `npm run build` and `npx nuxt typecheck` to catch compile errors.
+3. Deploy Strapi first, then Nuxt.
+4. Test the browser flow using `SHIPPING_CHECKOUT_TESTS.md`.

@@ -8,17 +8,29 @@
         <p class="text-dark-400 mt-2">Review your order and continue to secure payment.</p>
       </div>
 
-      <!-- Test mode notice -->
-      <div
-        v-if="isTestMode"
-        class="mb-6 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex items-start gap-3"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <div>
-          <p class="text-yellow-400 font-semibold text-sm">TEST PAYMENT MODE</p>
-          <p class="text-yellow-200/70 text-xs mt-0.5">No real money will be charged. Use Moov test credentials only.</p>
+      <!-- Test mode notices -->
+      <div class="mb-6 space-y-3">
+        <div
+          v-if="isTestMode"
+          class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex items-start gap-3"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <p class="text-yellow-400 font-semibold text-sm">MOOV TEST MODE — NO REAL MONEY</p>
+            <p class="text-yellow-200/70 text-xs mt-0.5">No real money will be charged. Use Moov test credentials only.</p>
+          </div>
+        </div>
+
+        <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 flex items-start gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p class="text-blue-400 font-semibold text-sm">SHIPPO TEST MODE — NO REAL POSTAGE</p>
+            <p class="text-blue-200/70 text-xs mt-0.5">Test shipping rates only. No real shipping label will be purchased.</p>
+          </div>
         </div>
       </div>
 
@@ -70,21 +82,149 @@
                 class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors"
               />
             </div>
+
+            <div>
+              <label class="block text-sm font-medium text-dark-300 mb-1">Phone <span class="text-red-400">*</span></label>
+              <input
+                v-model="form.phone"
+                type="tel"
+                placeholder="(555) 123-4567"
+                autocomplete="tel"
+                class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors"
+              />
+            </div>
           </div>
 
-          <!-- Research-Use Confirmation -->
-          <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
-            <h2 class="text-lg font-semibold text-white mb-4">Research Use Confirmation <span class="text-red-400">*</span></h2>
+          <!-- Shipping Address -->
+          <div class="bg-dark-900 rounded-xl border border-dark-700 p-6 space-y-4">
+            <h2 class="text-lg font-semibold text-white">Shipping Address <span class="text-red-400">*</span></h2>
+
+            <div>
+              <label class="block text-sm font-medium text-dark-300 mb-1">Address Line 1</label>
+              <input
+                v-model="form.shippingAddress1"
+                type="text"
+                placeholder="123 Research Blvd"
+                autocomplete="shipping address-line1"
+                class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-dark-300 mb-1">Address Line 2 <span class="text-dark-500">(optional)</span></label>
+              <input
+                v-model="form.shippingAddress2"
+                type="text"
+                placeholder="Suite 100"
+                autocomplete="shipping address-line2"
+                class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors"
+              />
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-dark-300 mb-1">City</label>
+                <input
+                  v-model="form.shippingCity"
+                  type="text"
+                  placeholder="Austin"
+                  autocomplete="shipping locality"
+                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-dark-300 mb-1">State</label>
+                <input
+                  v-model="form.shippingState"
+                  type="text"
+                  placeholder="TX"
+                  autocomplete="shipping region"
+                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-dark-300 mb-1">ZIP Code</label>
+                <input
+                  v-model="form.shippingPostalCode"
+                  type="text"
+                  placeholder="78701"
+                  autocomplete="shipping postal-code"
+                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-dark-300 mb-1">Country</label>
+                <input
+                  v-model="form.shippingCountry"
+                  type="text"
+                  placeholder="US"
+                  disabled
+                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                />
+                <p class="text-dark-500 text-xs mt-1">US shipping only.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Purchaser Confirmations -->
+          <div class="bg-dark-900 rounded-xl border border-dark-700 p-6 space-y-4">
+            <h2 class="text-lg font-semibold text-white">Purchaser Confirmations <span class="text-red-400">*</span></h2>
+
             <label class="flex items-start gap-3 cursor-pointer group">
               <input
                 type="checkbox"
-                v-model="form.confirmationAccepted"
+                v-model="form.ageConfirmed"
                 class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
               />
               <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
-                I confirm that I am 21 years of age or older, a qualified professional or researcher,
-                and I understand that all products are for <strong class="text-primary-400">research use only</strong> —
-                not for human or veterinary use.
+                I confirm that I am at least 21 years old.
+              </span>
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                v-model="form.researchUseConfirmed"
+                class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
+              />
+              <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
+                I understand that these products are supplied exclusively for laboratory research and are not intended for human or veterinary use.
+              </span>
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                v-model="form.qualifiedPurchaserConfirmed"
+                class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
+              />
+              <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
+                I confirm that I am authorized and qualified to purchase and handle these materials for legitimate research purposes.
+              </span>
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                v-model="form.termsAccepted"
+                class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
+              />
+              <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
+                I have reviewed and agree to the Terms of Sale, Shipping Policy, Refund Policy, and Privacy Policy.
+              </span>
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                v-model="form.verificationAcknowledged"
+                class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
+              />
+              <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
+                I understand that an order may be refused or cancelled if the information provided cannot be verified.
               </span>
             </label>
           </div>
@@ -104,7 +244,7 @@
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            {{ isLoading ? 'Preparing Order...' : 'Continue to Payment' }}
+            {{ isLoading ? 'Preparing Order...' : 'Get Shipping Rates' }}
           </button>
 
           <p class="text-dark-500 text-xs text-center">
@@ -140,14 +280,22 @@
                 <span>Subtotal</span>
                 <span>{{ formatPrice(cartStore.subtotal) }}</span>
               </div>
+              <div class="flex justify-between text-dark-500">
+                <span>Shipping</span>
+                <span>Calculated next</span>
+              </div>
+              <div class="flex justify-between text-dark-500">
+                <span>Tax</span>
+                <span>Calculated next</span>
+              </div>
               <div class="flex justify-between text-white font-semibold text-base pt-2 border-t border-dark-700">
-                <span>Total</span>
+                <span>Final Total</span>
                 <span>{{ formatPrice(cartStore.subtotal) }}</span>
               </div>
             </div>
 
             <p class="text-dark-500 text-xs mt-4 leading-relaxed">
-              Shipping and tax will be calculated before payment. Final total confirmed by the server.
+              Shipping and tax will be calculated after you select a rate. Final total is confirmed by the server.
             </p>
           </div>
         </div>
@@ -173,7 +321,28 @@ const form = reactive({
   firstName: '',
   lastName: '',
   email: '',
-  confirmationAccepted: false,
+  phone: '',
+  shippingAddress1: '',
+  shippingAddress2: '',
+  shippingCity: '',
+  shippingState: '',
+  shippingPostalCode: '',
+  shippingCountry: 'US',
+  ageConfirmed: false,
+  researchUseConfirmed: false,
+  qualifiedPurchaserConfirmed: false,
+  termsAccepted: false,
+  verificationAcknowledged: false,
+})
+
+const allConfirmationsAccepted = computed(() => {
+  return (
+    form.ageConfirmed === true &&
+    form.researchUseConfirmed === true &&
+    form.qualifiedPurchaserConfirmed === true &&
+    form.termsAccepted === true &&
+    form.verificationAcknowledged === true
+  )
 })
 
 const canSubmit = computed(() => {
@@ -181,7 +350,13 @@ const canSubmit = computed(() => {
     form.firstName.trim() &&
     form.lastName.trim() &&
     form.email.trim() &&
-    form.confirmationAccepted &&
+    form.phone.trim() &&
+    form.shippingAddress1.trim() &&
+    form.shippingCity.trim() &&
+    form.shippingState.trim() &&
+    form.shippingPostalCode.trim() &&
+    form.shippingCountry.trim() &&
+    allConfirmationsAccepted.value &&
     !cartStore.isEmpty
   )
 })
@@ -196,7 +371,7 @@ const handleSubmit = async () => {
   error.value = null
 
   if (!canSubmit.value) {
-    error.value = 'Please fill in all required fields and accept the research-use confirmation.'
+    error.value = 'Please fill in all required fields and accept every purchaser confirmation.'
     return
   }
 
@@ -213,9 +388,11 @@ const handleSubmit = async () => {
       taxCents: number
       totalCents: number
       paymentStatus: string
+      shippingStatus: string
       checkoutSessionToken: string
     }>('/api/checkout/prepare', {
       method: 'POST',
+      credentials: 'include',
       body: {
         items: cartStore.items.map((item) => ({
           variantId: item.variantId,
@@ -224,17 +401,33 @@ const handleSubmit = async () => {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim(),
+        phone: form.phone.trim(),
+        shippingFirstName: form.firstName.trim(),
+        shippingLastName: form.lastName.trim(),
+        shippingAddress1: form.shippingAddress1.trim(),
+        shippingAddress2: form.shippingAddress2.trim(),
+        shippingCity: form.shippingCity.trim(),
+        shippingState: form.shippingState.trim(),
+        shippingPostalCode: form.shippingPostalCode.trim(),
+        shippingCountry: form.shippingCountry.trim().toUpperCase(),
+        ageConfirmed: form.ageConfirmed === true,
+        researchUseConfirmed: form.researchUseConfirmed === true,
+        qualifiedPurchaserConfirmed: form.qualifiedPurchaserConfirmed === true,
+        termsAccepted: form.termsAccepted === true,
+        verificationAcknowledged: form.verificationAcknowledged === true,
         idempotencyKey: generateIdempotencyKey(),
       },
     })
 
     cartStore.clearCart()
+    // Token is still in the URL temporarily for the exchange page; cookie is also set server-side.
     navigateTo(
       `/checkout/success?orderId=${response.orderId}` +
       `&orderNumber=${encodeURIComponent(response.orderNumber)}` +
       `&email=${encodeURIComponent(form.email.trim())}` +
       `&totalCents=${response.totalCents}` +
       `&paymentStatus=${encodeURIComponent(response.paymentStatus)}` +
+      `&shippingStatus=${encodeURIComponent(response.shippingStatus || 'not_quoted')}` +
       `&t=${encodeURIComponent(response.checkoutSessionToken)}`
     )
   } catch (err: any) {

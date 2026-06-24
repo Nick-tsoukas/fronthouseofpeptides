@@ -1,9 +1,12 @@
 import { type H3Event } from 'h3'
 import { generateCheckoutSessionToken, hashToken } from '~/server/utils/moov'
+import { setCheckoutSessionCookie } from '~/server/utils/checkout-session'
 
 const CURRENCY_CODE = 'USD'
 const SHIPPING_CENTS = 0
 const TAX_CENTS = 0
+const TERMS_VERSION = '2026-06-20'
+const RESEARCH_ATTESTATION_VERSION = '2026-06-20'
 
 interface CartLine {
   variantId?: number
@@ -15,6 +18,18 @@ interface RequestBody {
   firstName?: string
   lastName?: string
   email?: string
+  phone?: string
+  shippingAddress1?: string
+  shippingAddress2?: string
+  shippingCity?: string
+  shippingState?: string
+  shippingPostalCode?: string
+  shippingCountry?: string
+  ageConfirmed?: boolean
+  researchUseConfirmed?: boolean
+  qualifiedPurchaserConfirmed?: boolean
+  termsAccepted?: boolean
+  verificationAcknowledged?: boolean
   idempotencyKey?: string
 }
 
@@ -73,6 +88,14 @@ export default defineEventHandler(async (event: H3Event) => {
   const firstName = (body?.firstName || '').trim()
   const lastName = (body?.lastName || '').trim()
   const email = (body?.email || '').trim()
+  const phone = (body?.phone || '').trim()
+
+  const shippingAddress1 = (body?.shippingAddress1 || '').trim()
+  const shippingAddress2 = (body?.shippingAddress2 || '').trim()
+  const shippingCity = (body?.shippingCity || '').trim()
+  const shippingState = (body?.shippingState || '').trim()
+  const shippingPostalCode = (body?.shippingPostalCode || '').trim()
+  const shippingCountry = (body?.shippingCountry || 'US').trim().toUpperCase()
 
   if (!firstName) errors.push('First name is required.')
   if (!lastName) errors.push('Last name is required.')
@@ -80,6 +103,26 @@ export default defineEventHandler(async (event: H3Event) => {
     errors.push('Email is required.')
   } else if (!isValidEmail(email)) {
     errors.push('Email is invalid.')
+  }
+  if (!phone) errors.push('Phone number is required.')
+  if (!shippingAddress1) errors.push('Shipping address is required.')
+  if (!shippingCity) errors.push('Shipping city is required.')
+  if (!shippingState) errors.push('Shipping state is required.')
+  if (!shippingPostalCode) errors.push('Shipping postal code is required.')
+  if (shippingCountry !== 'US') errors.push('Only US shipping is supported at this time.')
+
+  const requiredConfirmations: Record<string, boolean | undefined> = {
+    ageConfirmed: body?.ageConfirmed,
+    researchUseConfirmed: body?.researchUseConfirmed,
+    qualifiedPurchaserConfirmed: body?.qualifiedPurchaserConfirmed,
+    termsAccepted: body?.termsAccepted,
+    verificationAcknowledged: body?.verificationAcknowledged,
+  }
+
+  for (const [key, value] of Object.entries(requiredConfirmations)) {
+    if (value !== true) {
+      errors.push(`Required confirmation not accepted: ${key}.`)
+    }
   }
 
   const idempotencyKey = (body?.idempotencyKey || '').trim()
@@ -114,6 +157,8 @@ export default defineEventHandler(async (event: H3Event) => {
         console.error('Failed to refresh checkout session token hash:', err?.message || err)
       }
 
+      setCheckoutSessionCookie(event, existingCheckoutSessionToken)
+
       return {
         ok: true,
         orderId: existing.id,
@@ -124,6 +169,7 @@ export default defineEventHandler(async (event: H3Event) => {
         taxCents: existing.attributes.taxCents ?? TAX_CENTS,
         totalCents: existing.attributes.totalCents,
         paymentStatus: existing.attributes.paymentStatus || 'pending',
+        shippingStatus: existing.attributes.shippingStatus || 'not_quoted',
         checkoutSessionToken: existingCheckoutSessionToken,
       }
     }
@@ -209,6 +255,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const orderNumber = generateOrderNumber()
   const checkoutSessionToken = generateCheckoutSessionToken()
   const checkoutSessionTokenHash = hashToken(checkoutSessionToken)
+  const now = new Date().toISOString()
 
   // ── Create pending Order in Strapi ──────────────────────────────────────
   let orderId: number
@@ -225,6 +272,16 @@ export default defineEventHandler(async (event: H3Event) => {
             orderNumber,
             customerName: `${firstName} ${lastName}`,
             email,
+            phone,
+            shippingFirstName: firstName,
+            shippingLastName: lastName,
+            shippingPhone: phone,
+            shippingAddress1,
+            shippingAddress2,
+            shippingCity,
+            shippingState,
+            shippingPostalCode,
+            shippingCountry,
             amountSubtotal: subtotalCents / 100,
             amountTotal: totalCents / 100,
             shippingAmount: SHIPPING_CENTS / 100,
@@ -238,7 +295,16 @@ export default defineEventHandler(async (event: H3Event) => {
             idempotencyKey,
             inventoryCommitted: false,
             status: 'awaiting_payment',
+            shippingStatus: 'not_quoted',
             checkoutSessionTokenHash,
+            ageConfirmed: true,
+            researchUseConfirmed: true,
+            qualifiedPurchaserConfirmed: true,
+            termsAccepted: true,
+            verificationAcknowledged: true,
+            attestationsAcceptedAt: now,
+            termsVersion: TERMS_VERSION,
+            researchAttestationVersion: RESEARCH_ATTESTATION_VERSION,
           },
         },
       }
@@ -252,6 +318,9 @@ export default defineEventHandler(async (event: H3Event) => {
     }
     throw createError({ statusCode: 502, message: 'Failed to create order. Please try again.' })
   }
+
+  // ── Set secure checkout session cookie ──────────────────────────────────
+  setCheckoutSessionCookie(event, checkoutSessionToken)
 
   // ── Create Order Item records ───────────────────────────────────────────
   await Promise.all(
@@ -289,6 +358,7 @@ export default defineEventHandler(async (event: H3Event) => {
     taxCents: TAX_CENTS,
     totalCents,
     paymentStatus: 'pending',
+    shippingStatus: 'not_quoted',
     checkoutSessionToken,
   }
 })

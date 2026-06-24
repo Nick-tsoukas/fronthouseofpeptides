@@ -25,6 +25,8 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    nodeEnv: process.env.NODE_ENV || 'development',
+
     // Server-only keys
     stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
@@ -45,11 +47,30 @@ export default defineNuxtConfig({
     moovMode: process.env.MOOV_MODE || 'test',
     moovWebhookSecret: process.env.MOOV_WEBHOOK_SECRET || '',
 
+    // Shippo (server-only — never expose in public)
+    shippoApiToken: process.env.SHIPPO_API_TOKEN || '',
+    shippoMode: process.env.SHIPPO_MODE || 'test',
+    shippingFromName: process.env.SHIPPING_FROM_NAME || '',
+    shippingFromCompany: process.env.SHIPPING_FROM_COMPANY || '',
+    shippingFromStreet1: process.env.SHIPPING_FROM_STREET1 || '',
+    shippingFromStreet2: process.env.SHIPPING_FROM_STREET2 || '',
+    shippingFromCity: process.env.SHIPPING_FROM_CITY || '',
+    shippingFromState: process.env.SHIPPING_FROM_STATE || '',
+    shippingFromZip: process.env.SHIPPING_FROM_ZIP || '',
+    shippingFromCountry: process.env.SHIPPING_FROM_COUNTRY || 'US',
+    shippingFromPhone: process.env.SHIPPING_FROM_PHONE || '',
+    shippingFromEmail: process.env.SHIPPING_FROM_EMAIL || '',
+    defaultParcelLengthIn: process.env.DEFAULT_PARCEL_LENGTH_IN || '6',
+    defaultParcelWidthIn: process.env.DEFAULT_PARCEL_WIDTH_IN || '4',
+    defaultParcelHeightIn: process.env.DEFAULT_PARCEL_HEIGHT_IN || '2',
+    defaultParcelWeightOz: process.env.DEFAULT_PARCEL_WEIGHT_OZ || '6',
+
     // Public keys (available on client)
     public: {
       strapiUrl: process.env.STRAPI_URL || 'http://localhost:1337',
       appUrl: process.env.APP_URL || 'http://localhost:3000',
       moovMode: process.env.MOOV_MODE || 'test',
+      shippoMode: process.env.SHIPPO_MODE || 'test',
     }
   },
 

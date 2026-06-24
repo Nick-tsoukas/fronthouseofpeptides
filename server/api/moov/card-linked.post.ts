@@ -1,5 +1,6 @@
 import { type H3Event } from 'h3'
-import { getMoovConfig, getAccountPaymentMethods, getAccountCards, hashToken, safeLog } from '~/server/utils/moov'
+import { getMoovConfig, getAccountPaymentMethods, getAccountCards, safeLog } from '~/server/utils/moov'
+import { validateCheckoutSession } from '~/server/utils/checkout-session'
 
 interface RequestBody {
   orderId?: number
@@ -26,44 +27,15 @@ export default defineEventHandler(async (event: H3Event) => {
   const checkoutSessionToken = (body?.checkoutSessionToken || '').trim()
   const cardId = (body?.cardId || '').trim()
 
-  if (!Number.isInteger(orderId) || orderId <= 0) {
-    throw createError({ statusCode: 400, message: 'Invalid order ID.' })
-  }
-  if (!checkoutSessionToken) {
-    throw createError({ statusCode: 400, message: 'Checkout session token is required.' })
-  }
   if (!cardId) {
     throw createError({ statusCode: 400, message: 'Card ID is required.' })
   }
 
-  const tokenHash = hashToken(checkoutSessionToken)
-
-  // Load order and validate session token hash
-  let order: any
-  try {
-    const orderResponse = await $fetch<{ data: any }>(
-      `${strapiUrl}/api/orders/${orderId}?fields[0]=orderNumber&fields[1]=paymentStatus&fields[2]=status&fields[3]=moovCustomerAccountId&fields[4]=checkoutSessionTokenHash`,
-      { headers: authHeaders }
-    )
-    order = orderResponse.data
-  } catch (err: any) {
-    console.error('Order load failed:', err?.message || err)
-    throw createError({ statusCode: 502, message: 'Could not load order. Please try again.' })
-  }
-
-  if (!order) {
-    throw createError({ statusCode: 404, message: 'Order not found.' })
-  }
-
-  const attrs = order.attributes || {}
-
-  if (attrs.checkoutSessionTokenHash !== tokenHash) {
-    throw createError({ statusCode: 401, message: 'Invalid checkout session.' })
-  }
-
-  if (attrs.status !== 'awaiting_payment' || attrs.paymentStatus !== 'pending') {
-    throw createError({ statusCode: 400, message: 'Order is not available for payment.' })
-  }
+  const { attributes: attrs } = await validateCheckoutSession(event, {
+    orderId,
+    token: checkoutSessionToken || undefined,
+    requiredFields: ['orderNumber', 'moovCustomerAccountId'],
+  })
 
   const customerAccountId = attrs.moovCustomerAccountId
   if (!customerAccountId) {

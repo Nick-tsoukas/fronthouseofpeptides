@@ -41,6 +41,18 @@
         </button>
       </div>
 
+      <!-- Payment blocked (shipping not selected) -->
+      <div v-else-if="paymentBlocked" class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-6">
+        <p class="text-yellow-400 text-sm font-medium">Payment Not Ready</p>
+        <p class="text-yellow-200/70 text-sm mt-1">{{ paymentBlocked }}</p>
+        <NuxtLink
+          :to="`/checkout/success?orderId=${orderId}`"
+          class="mt-3 inline-block px-4 py-2 bg-dark-800 hover:bg-dark-700 text-white text-sm rounded-lg transition-colors"
+        >
+          Return to Shipping
+        </NuxtLink>
+      </div>
+
       <!-- Order summary + form -->
       <div v-else class="space-y-6">
         <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
@@ -171,9 +183,10 @@ const route = useRoute()
 const router = useRouter()
 
 const orderId = Number(route.query.orderId)
-const orderNumber = computed(() => (route.query.orderNumber as string) || '')
-const totalCents = computed(() => Number(route.query.totalCents) || 0)
-const checkoutSessionToken = computed(() => (route.query.t as string) || '')
+const orderNumber = ref('')
+const totalCents = ref(0)
+const shippingStatus = ref('')
+const paymentBlocked = ref<string | null>(null)
 
 const formatTotal = computed(() => {
   const dollars = totalCents.value / 100
@@ -231,23 +244,31 @@ async function loadSession() {
   isLoading.value = true
   error.value = null
   cardError.value = null
+  paymentBlocked.value = null
 
   try {
-    if (!orderId || !checkoutSessionToken.value) {
+    if (!orderId) {
       throw new Error('Missing order information.')
     }
 
     const session = await $fetch('/api/moov/card-session', {
       method: 'POST',
-      body: {
-        orderId,
-        checkoutSessionToken: checkoutSessionToken.value,
-      },
+      body: { orderId },
+      credentials: 'include',
     })
+
+    if (session?.paymentBlocked) {
+      paymentBlocked.value = session.paymentBlocked as string
+      isLoading.value = false
+      return
+    }
 
     accessToken.value = (session as any).accessToken
     customerAccountId.value = (session as any).customerAccountId
     merchantAccountId.value = (session as any).merchantAccountId
+    orderNumber.value = (session as any).orderNumber || ''
+    totalCents.value = (session as any).totalCents || 0
+    shippingStatus.value = (session as any).shippingStatus || ''
     showCardLink.value = true
 
     await nextTick()
@@ -305,11 +326,8 @@ async function handleCardSuccess(response: any) {
 
     const result = await $fetch('/api/moov/card-linked', {
       method: 'POST',
-      body: {
-        orderId,
-        checkoutSessionToken: checkoutSessionToken.value,
-        cardId,
-      },
+      body: { orderId, cardId },
+      credentials: 'include',
     })
 
     await router.push(

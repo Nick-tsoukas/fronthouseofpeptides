@@ -4,9 +4,9 @@ import {
   getSiteOrigin,
   createMoovIndividualAccount,
   createMoovAccessToken,
-  hashToken,
   safeLog,
 } from '~/server/utils/moov'
+import { validateCheckoutSession } from '~/server/utils/checkout-session'
 
 interface RequestBody {
   orderId?: number
@@ -32,40 +32,36 @@ export default defineEventHandler(async (event: H3Event) => {
   const orderId = Number(body?.orderId)
   const checkoutSessionToken = (body?.checkoutSessionToken || '').trim()
 
-  if (!Number.isInteger(orderId) || orderId <= 0) {
-    throw createError({ statusCode: 400, message: 'Invalid order ID.' })
-  }
-  if (!checkoutSessionToken) {
-    throw createError({ statusCode: 400, message: 'Checkout session token is required.' })
-  }
+  const { attributes: attrs } = await validateCheckoutSession(event, {
+    orderId,
+    token: checkoutSessionToken || undefined,
+    requiredFields: [
+      'customerName',
+      'email',
+      'moovCustomerAccountId',
+      'shippingStatus',
+      'shippingFirstName',
+      'shippingLastName',
+      'shippingAddress1',
+      'shippingCity',
+      'shippingState',
+      'shippingPostalCode',
+      'shippingCountry',
+      'ageConfirmed',
+      'researchUseConfirmed',
+      'qualifiedPurchaserConfirmed',
+      'termsAccepted',
+      'verificationAcknowledged',
+    ],
+  })
 
-  const tokenHash = hashToken(checkoutSessionToken)
-
-  // Load order and validate session token hash
-  let order: any
-  try {
-    const orderResponse = await $fetch<{ data: any }>(
-      `${strapiUrl}/api/orders/${orderId}?fields[0]=customerName&fields[1]=email&fields[2]=paymentStatus&fields[3]=status&fields[4]=moovCustomerAccountId&fields[5]=checkoutSessionTokenHash`,
-      { headers: authHeaders }
-    )
-    order = orderResponse.data
-  } catch (err: any) {
-    console.error('Order load failed:', err?.message || err)
-    throw createError({ statusCode: 502, message: 'Could not load order. Please try again.' })
-  }
-
-  if (!order) {
-    throw createError({ statusCode: 404, message: 'Order not found.' })
-  }
-
-  const attrs = order.attributes || {}
-
-  if (attrs.checkoutSessionTokenHash !== tokenHash) {
-    throw createError({ statusCode: 401, message: 'Invalid checkout session.' })
-  }
-
-  if (attrs.status !== 'awaiting_payment' || attrs.paymentStatus !== 'pending') {
-    throw createError({ statusCode: 400, message: 'Order is not available for payment.' })
+  if (attrs.shippingStatus !== 'selected') {
+    return {
+      ok: false,
+      paymentBlocked: 'Shipping must be selected before payment.',
+      orderNumber: attrs.orderNumber,
+      shippingStatus: attrs.shippingStatus || 'not_quoted',
+    }
   }
 
   // Parse first and last name from customerName
@@ -136,5 +132,8 @@ export default defineEventHandler(async (event: H3Event) => {
     merchantAccountId: moovConfig.accountId,
     mode: moovConfig.mode,
     expiresIn,
+    orderNumber: attrs.orderNumber,
+    totalCents: attrs.totalCents,
+    shippingStatus: attrs.shippingStatus,
   }
 })
