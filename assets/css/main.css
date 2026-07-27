@@ -20,4 +20,15 @@
   .btn-secondary {
     @apply px-6 py-3 bg-dark-800 hover:bg-dark-700 text-white font-medium rounded-lg border border-dark-600 transition-all duration-200;
   }
+
+  /* Keep Moov checkout hosts compact site-wide (payment page shells constrain further). */
+  moov-text-input,
+  moov-card-number-input,
+  moov-expiration-date-input,
+  moov-card-security-code-input {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
