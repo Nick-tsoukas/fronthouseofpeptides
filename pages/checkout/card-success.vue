@@ -3,15 +3,15 @@
     <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
 
       <div class="text-center mb-8">
-        <div class="w-20 h-20 mx-auto mb-6 bg-green-500/10 rounded-full flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="w-20 h-20 mx-auto mb-6 bg-emerald-500/10 rounded-full flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
         </div>
 
-        <h1 class="text-3xl font-bold text-white mb-3">Test Card Linked</h1>
+        <h1 class="text-3xl font-bold text-white mb-3">Card Verified</h1>
         <p class="text-dark-400 max-w-md mx-auto">
-          Your card is ready for payment. No payment has been processed yet.
+          Card verified. Payment submission is not enabled yet.
         </p>
       </div>
 
@@ -25,8 +25,8 @@
           </div>
           <div class="flex justify-between">
             <span class="text-dark-400">Payment Status</span>
-            <span class="inline-flex items-center gap-1.5 text-yellow-400">
-              <span class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
+            <span class="inline-flex items-center gap-1.5 text-amber-400">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
               {{ displayPaymentStatus }}
             </span>
           </div>
@@ -37,10 +37,10 @@
             disabled
             class="w-full py-4 bg-primary-500/50 text-white/70 font-semibold rounded-lg cursor-not-allowed"
           >
-            Pay with linked card
+            Pay now
           </button>
           <p class="text-dark-500 text-xs text-center mt-3">
-            Payment processing will be enabled in the next stage.
+            Server-side payment capture will be enabled in the next stage. No charge has been created.
           </p>
         </div>
       </div>
@@ -69,6 +69,6 @@ const displayPaymentStatus = computed(() => {
 })
 
 useHead({
-  title: 'Card Linked — Quantum Bio Peptides',
+  title: 'Payment — Quantum Bio Peptides',
 })
 </script>

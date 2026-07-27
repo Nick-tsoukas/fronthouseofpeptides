@@ -104,8 +104,10 @@ export default defineEventHandler(async (event: H3Event) => {
   return {
     ok: true,
     orderNumber: attrs.orderNumber,
-    cardLinked: true,
+    cardVerified: true,
     paymentReady: true,
     paymentStatus: 'pending',
+    // Internal compatibility for older clients
+    cardLinked: true,
   }
 })
