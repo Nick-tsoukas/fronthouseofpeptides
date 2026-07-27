@@ -24,10 +24,14 @@ export default defineNuxtConfig({
     configPath: 'tailwind.config.js',
   },
 
+  // Env contract (see .env.example):
+  // Private: STRAPI_TOKEN, MOOV_*, SHIPPO_API_TOKEN, SHIPPING_FROM_*, DEFAULT_PARCEL_*, SMTP_*, OWNER_*
+  // Public:  STRAPI_URL, APP_URL, MOOV_MODE, SHIPPO_MODE (modes only — no secrets)
+  // Legacy names NOT supported: PUBLIC_MOOV, SECRET_MOOV, SHIPPO_TEST, API_TOKEN_STRAPI
   runtimeConfig: {
     nodeEnv: process.env.NODE_ENV || 'development',
 
-    // Server-only keys
+    // Server-only keys (never put secrets under `public`)
     stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
     strapiToken: process.env.STRAPI_TOKEN || '',
@@ -65,7 +69,7 @@ export default defineNuxtConfig({
     defaultParcelHeightIn: process.env.DEFAULT_PARCEL_HEIGHT_IN || '2',
     defaultParcelWeightOz: process.env.DEFAULT_PARCEL_WEIGHT_OZ || '6',
 
-    // Public keys (available on client)
+    // Public (client-safe only — no API keys/tokens)
     public: {
       strapiUrl: process.env.STRAPI_URL || 'http://localhost:1337',
       appUrl: process.env.APP_URL || 'http://localhost:3000',

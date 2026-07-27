@@ -8,6 +8,20 @@
         <p class="text-dark-400 mt-2">Link a test card to your order.</p>
       </div>
 
+      <!-- HTTPS required for Moov card iframes -->
+      <div
+        v-if="needsHttps"
+        class="mb-6 bg-red-500/10 border border-red-500/30 rounded-lg p-4"
+      >
+        <p class="text-red-400 font-semibold text-sm">HTTPS required for Moov card form</p>
+        <p class="text-red-200/80 text-sm mt-1 leading-relaxed">
+          Moov card fields load from <code class="text-red-300">cards.moov.io</code> and only allow HTTPS parent pages.
+          Plain <code class="text-red-300">http://localhost</code> is blocked by their Content Security Policy.
+          Open this checkout through an HTTPS tunnel (ngrok, Cloudflare Tunnel, etc.) and set
+          <code class="text-red-300">APP_URL</code> to that HTTPS origin.
+        </p>
+      </div>
+
       <!-- Test mode notice -->
       <div
         class="mb-6 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex items-start gap-3"
@@ -46,10 +60,10 @@
         <p class="text-yellow-400 text-sm font-medium">Payment Not Ready</p>
         <p class="text-yellow-200/70 text-sm mt-1">{{ paymentBlocked }}</p>
         <NuxtLink
-          :to="`/checkout/success?orderId=${orderId}`"
+          to="/checkout"
           class="mt-3 inline-block px-4 py-2 bg-dark-800 hover:bg-dark-700 text-white text-sm rounded-lg transition-colors"
         >
-          Return to Shipping
+          Return to Checkout
         </NuxtLink>
       </div>
 
@@ -187,6 +201,7 @@ const orderNumber = ref('')
 const totalCents = ref(0)
 const shippingStatus = ref('')
 const paymentBlocked = ref<string | null>(null)
+const needsHttps = ref(false)
 
 const formatTotal = computed(() => {
   const dollars = totalCents.value / 100
@@ -350,6 +365,8 @@ function handleCardError(err: any) {
 
 onMounted(async () => {
   if (import.meta.client) {
+    needsHttps.value = window.location.protocol !== 'https:'
+
     try {
       await loadMoovScript()
     } catch (err: any) {

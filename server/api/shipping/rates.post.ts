@@ -2,6 +2,7 @@ import { type H3Event } from 'h3'
 import { validateCheckoutSession } from '~/server/utils/checkout-session'
 import {
   getShippoConfig,
+  assertShippoFromAddress,
   shippoFetch,
   sanitizeRate,
   type ShippoAddress,
@@ -29,6 +30,12 @@ export default defineEventHandler(async (event: H3Event) => {
   const shippoConfig = getShippoConfig(event)
   if (!shippoConfig.apiToken) {
     throw createError({ statusCode: 500, message: 'Shipping integration is not configured.' })
+  }
+  try {
+    assertShippoFromAddress(shippoConfig)
+  } catch (err: any) {
+    console.error(err?.message || err)
+    throw createError({ statusCode: 500, message: 'Shipping origin address is not configured.' })
   }
 
   const body = await readBody<RequestBody>(event)
@@ -150,23 +157,24 @@ export default defineEventHandler(async (event: H3Event) => {
     const addressTo: ShippoAddress = {
       name: `${firstName} ${lastName}`,
       street1: address1,
-      street2: (attrs.shippingAddress2 || '').trim() || undefined,
       city,
       state,
       zip: postalCode,
-      country,
+      country: country || 'US',
       phone,
       email: (attrs.email || '').trim() || undefined,
       is_residential: true,
     }
+    const street2 = (attrs.shippingAddress2 || '').trim()
+    if (street2) addressTo.street2 = street2
 
-    // Validate and create the destination address via Shippo
+    // Soft-validate destination address (optional object_id for later label purchase)
     try {
       const addressResult = await shippoFetch<any>(shippoConfig, '/addresses/', {
         method: 'POST',
         body: addressTo,
       })
-      addressToId = addressResult.object_id
+      addressToId = addressResult?.object_id || ''
       normalizedAddress = addressResult
     } catch (err: any) {
       console.error('Shippo address validation failed:', err?.message || err)
@@ -177,21 +185,29 @@ export default defineEventHandler(async (event: H3Event) => {
       throw createError({ statusCode: 400, message: 'Shipping address is invalid.' })
     }
 
-    // Create the Shippo shipment
+    // Create the Shippo shipment.
+    // IMPORTANT: address_to must be a full address object OR the object_id string.
+    // Passing { object_id } makes Shippo treat it as a new address without country.
     try {
       shipment = await shippoFetch<ShippoShipment>(shippoConfig, '/shipments/', {
         method: 'POST',
         body: {
           address_from: shippoConfig.from,
-          address_to: { object_id: addressToId },
+          address_to: addressTo,
           parcels: [shippoConfig.parcel],
           metadata: `Order ${attrs.orderNumber || orderId}`,
           async: false,
         },
       })
+      if (!addressToId && shipment.address_to?.object_id) {
+        addressToId = shipment.address_to.object_id
+      }
     } catch (err: any) {
       console.error('Shippo shipment creation failed:', err?.message || err)
-      throw createError({ statusCode: 502, message: 'Could not retrieve shipping rates. Please try again.' })
+      throw createError({
+        statusCode: 502,
+        message: 'Could not retrieve shipping rates. Please try again.',
+      })
     }
   }
 

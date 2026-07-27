@@ -19,38 +19,59 @@ export interface ShippoConfig {
     length: string
     width: string
     height: string
-    distanceUnit: string
+    distance_unit: string
     weight: string
-    massUnit: string
+    mass_unit: string
   }
 }
 
 export function getShippoConfig(event: any): ShippoConfig {
   const config = useRuntimeConfig(event)
 
+  const from: ShippoConfig['from'] = {
+    name: (config.shippingFromName as string) || '',
+    street1: (config.shippingFromStreet1 as string) || '',
+    city: (config.shippingFromCity as string) || '',
+    state: (config.shippingFromState as string) || '',
+    zip: (config.shippingFromZip as string) || '',
+    country: ((config.shippingFromCountry as string) || 'US').toUpperCase(),
+  }
+
+  const company = (config.shippingFromCompany as string || '').trim()
+  const street2 = (config.shippingFromStreet2 as string || '').trim()
+  const phone = (config.shippingFromPhone as string || '').trim()
+  const email = (config.shippingFromEmail as string || '').trim()
+  if (company) from.company = company
+  if (street2) from.street2 = street2
+  if (phone) from.phone = phone
+  if (email) from.email = email
+
   return {
     apiToken: config.shippoApiToken as string,
     mode: (config.shippoMode as string) || 'test',
-    from: {
-      name: config.shippingFromName as string,
-      company: config.shippingFromCompany as string,
-      street1: config.shippingFromStreet1 as string,
-      street2: config.shippingFromStreet2 as string,
-      city: config.shippingFromCity as string,
-      state: config.shippingFromState as string,
-      zip: config.shippingFromZip as string,
-      country: (config.shippingFromCountry as string) || 'US',
-      phone: config.shippingFromPhone as string,
-      email: config.shippingFromEmail as string,
-    },
+    from,
+    // Shippo requires snake_case parcel unit fields.
     parcel: {
-      length: (config.defaultParcelLengthIn as string) || '6',
-      width: (config.defaultParcelWidthIn as string) || '4',
-      height: (config.defaultParcelHeightIn as string) || '2',
-      distanceUnit: 'in',
-      weight: (config.defaultParcelWeightOz as string) || '6',
-      massUnit: 'oz',
+      length: String((config.defaultParcelLengthIn as string) || '6'),
+      width: String((config.defaultParcelWidthIn as string) || '4'),
+      height: String((config.defaultParcelHeightIn as string) || '2'),
+      distance_unit: 'in',
+      weight: String((config.defaultParcelWeightOz as string) || '6'),
+      mass_unit: 'oz',
     },
+  }
+}
+
+export function assertShippoFromAddress(config: ShippoConfig): void {
+  const missing: string[] = []
+  if (!config.from.name) missing.push('SHIPPING_FROM_NAME')
+  if (!config.from.street1) missing.push('SHIPPING_FROM_STREET1')
+  if (!config.from.city) missing.push('SHIPPING_FROM_CITY')
+  if (!config.from.state) missing.push('SHIPPING_FROM_STATE')
+  if (!config.from.zip) missing.push('SHIPPING_FROM_ZIP')
+  if (!config.from.country) missing.push('SHIPPING_FROM_COUNTRY')
+  if (missing.length > 0) {
+    throw new Error(`Ship-from address is incomplete: ${missing.join(', ')}`)
   }
 }
 
@@ -113,7 +134,8 @@ export interface ShippoShipment {
 
 export interface ShippoRate {
   object_id: string
-  carrier: string
+  provider?: string
+  carrier?: string
   servicelevel: {
     name: string
     token: string
@@ -147,7 +169,7 @@ export function sanitizeRate(rate: ShippoRate): {
 } {
   return {
     rateId: rate.object_id,
-    carrier: rate.carrier,
+    carrier: rate.provider || rate.carrier || '',
     service: rate.servicelevel?.name || '',
     serviceToken: rate.servicelevel?.token || '',
     amountCents: toCentsFromDecimal(rate.amount),

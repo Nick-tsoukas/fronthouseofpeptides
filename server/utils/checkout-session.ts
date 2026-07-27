@@ -60,20 +60,29 @@ export async function validateCheckoutSession(
 
   const tokenHash = hashToken(token)
 
-  const fields = opts.requiredFields || []
-  const fieldsParam = fields.length > 0
-    ? '&' + fields.map((f, i) => `fields[${i}]=${encodeURIComponent(f)}`).join('&')
-    : ''
+  // Merge uniquely — duplicate fields[i] indices make Strapi return 500.
+  const fields = Array.from(
+    new Set([
+      'orderNumber',
+      'status',
+      'paymentStatus',
+      'checkoutSessionTokenHash',
+      ...(opts.requiredFields || []),
+    ])
+  )
+  const fieldsParam = fields
+    .map((f, i) => `fields[${i}]=${encodeURIComponent(f)}`)
+    .join('&')
 
   let order: any
   try {
     const orderResponse = await $fetch<{ data: any }>(
-      `${strapiUrl}/api/orders/${orderId}?fields[0]=orderNumber&fields[1]=status&fields[2]=paymentStatus&fields[3]=checkoutSessionTokenHash${fieldsParam}`,
+      `${strapiUrl}/api/orders/${orderId}?${fieldsParam}`,
       { headers: authHeaders }
     )
     order = orderResponse.data
   } catch (err: any) {
-    console.error('Order load failed:', err?.message || err)
+    console.error('Order load failed:', err?.data || err?.message || err)
     throw createError({ statusCode: 502, message: 'Could not load order. Please try again.' })
   }
 
