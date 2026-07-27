@@ -137,25 +137,29 @@
 
         <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
           <h2 class="text-lg font-semibold text-white mb-4">Test Card</h2>
+          <p class="text-dark-400 text-xs mb-4 leading-relaxed">
+            Use Moov test cards only — e.g. Visa <span class="font-mono text-dark-300">4111111111111111</span>,
+            any future expiration, any CVV, and a valid US ZIP.
+          </p>
 
-          <!-- Moov composable drops (client-side only) -->
+          <!-- Moov composable drops: form is separate; inputs register via formname -->
           <ClientOnly>
-            <div ref="cardFormContainer">
+            <div ref="cardFormContainer" class="space-y-4">
               <moov-form
                 v-if="showCardLink"
                 ref="cardFormRef"
                 name="card-link-form"
                 method="POST"
-                :action="cardFormAction"
-                :request-headers="cardFormHeaders"
-                class="space-y-4"
-              >
+              ></moov-form>
+
+              <template v-if="showCardLink">
                 <div>
                   <label class="block text-sm font-medium text-dark-300 mb-1">Name on card</label>
                   <moov-text-input
                     formname="card-link-form"
                     name="holderName"
                     autocomplete="cc-name"
+                    required
                     class="block w-full"
                   ></moov-text-input>
                 </div>
@@ -185,6 +189,7 @@
                     <moov-card-security-code-input
                       formname="card-link-form"
                       name="cardCvv"
+                      required
                       class="block w-full"
                     ></moov-card-security-code-input>
                   </div>
@@ -196,10 +201,11 @@
                     formname="card-link-form"
                     name="billingAddress.postalCode"
                     autocomplete="postal-code"
+                    required
                     class="block w-full"
                   ></moov-text-input>
                 </div>
-              </moov-form>
+              </template>
             </div>
             <template #fallback>
               <div class="py-8 text-center text-dark-400 text-sm">
@@ -254,6 +260,8 @@ interface CardSessionResponse {
   merchantAccountId?: string
   mode?: string
   expiresIn?: number
+  customerName?: string
+  email?: string
   orderNumber?: string
   subtotalCents?: number
   shippingCostCents?: number
@@ -273,6 +281,7 @@ const config = useRuntimeConfig()
 
 const orderId = Number(route.query.orderId)
 const orderNumber = ref('')
+const customerName = ref('')
 const subtotalCents = ref(0)
 const shippingCostCents = ref(0)
 const taxCents = ref(0)
@@ -319,17 +328,9 @@ const cardFormAction = computed(() => {
   return customerAccountId.value ? `/accounts/${customerAccountId.value}/cards` : ''
 })
 
-const cardFormHeaders = computed(() => {
-  return accessToken.value
-    ? {
-        Authorization: `Bearer ${accessToken.value}`,
-        'X-Moov-Version': 'v2026.04.00',
-      }
-    : {}
-})
-
 function applyOrderSummary(session: CardSessionResponse) {
   orderNumber.value = session.orderNumber || ''
+  customerName.value = session.customerName || ''
   subtotalCents.value = Number(session.subtotalCents) || 0
   shippingCostCents.value = Number(session.shippingCostCents) || 0
   taxCents.value = Number(session.taxCents) || 0
@@ -408,10 +409,29 @@ async function loadSession() {
 function attachCardLinkHandlers(retries = 0) {
   const form = cardFormRef.value
   if (form) {
+    form.method = 'POST'
     form.action = cardFormAction.value
-    form.requestHeaders = cardFormHeaders.value
+    // Set properties in JS (Vue attribute binding can stringify objects on custom elements).
+    form.requestHeaders = {
+      Authorization: `Bearer ${accessToken.value}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Moov-Version': 'v2026.04.00',
+      'X-Wait-For': 'payment-method',
+    }
+    form.requestBody = {
+      merchantAccountID: merchantAccountId.value,
+      cardOnFile: true,
+      ...(customerName.value ? { holderName: customerName.value } : {}),
+    }
     form.onSuccess = handleCardSuccess
     form.onError = handleCardError
+    form.onReportValidity = (result: { isValid?: boolean }) => {
+      if (result && result.isValid === false) {
+        isLinking.value = false
+        cardError.value = 'Please complete all required card fields.'
+      }
+    }
     cardReady.value = true
     return
   }
@@ -430,10 +450,32 @@ async function submitCard() {
 
   try {
     const form = cardFormRef.value
-    if (!form || typeof form.submit !== 'function') {
+    if (!form) {
       throw new Error('Payment form is not ready.')
     }
-    form.submit()
+
+    // Re-apply auth/body right before submit in case token/account refreshed.
+    form.action = cardFormAction.value
+    form.requestHeaders = {
+      Authorization: `Bearer ${accessToken.value}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Moov-Version': 'v2026.04.00',
+      'X-Wait-For': 'payment-method',
+    }
+    form.requestBody = {
+      merchantAccountID: merchantAccountId.value,
+      cardOnFile: true,
+      ...(customerName.value ? { holderName: customerName.value } : {}),
+    }
+
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit()
+    } else if (typeof form.submit === 'function') {
+      form.submit()
+    } else {
+      throw new Error('Payment form is not ready.')
+    }
   } catch (err: any) {
     console.error('Card submit error:', err)
     cardError.value = err.message || 'Could not submit card.'
@@ -465,11 +507,58 @@ async function handleCardSuccess(response: any) {
   }
 }
 
-function handleCardError(err: any) {
+async function handleCardError(err: any) {
   console.error('Moov card link error:', err)
-  const message = err?.message || err?.error?.message || err?.response?.message || 'Card linking failed. Please try again.'
-  cardError.value = message
   isLinking.value = false
+
+  let message = 'Card linking failed. Please try again.'
+
+  try {
+    let data: any = null
+    if (err && typeof err.json === 'function') {
+      data = await err.json()
+    } else if (err && typeof err.clone === 'function') {
+      data = await err.clone().json()
+    } else if (err && typeof err === 'object') {
+      data = err
+    }
+
+    if (data) {
+      const parts: string[] = []
+      if (typeof data.error === 'string' && data.error.trim()) parts.push(data.error)
+      if (typeof data.message === 'string' && data.message.trim()) parts.push(data.message)
+
+      for (const key of [
+        'cardNumber',
+        'cardCvv',
+        'expiration',
+        'holderName',
+        'billingAddress',
+        'merchantAccountID',
+        'cardOnFile',
+        'verifyName',
+      ]) {
+        const value = data[key]
+        if (!value) continue
+        if (typeof value === 'string') parts.push(`${key}: ${value}`)
+        else if (typeof value === 'object') parts.push(`${key}: ${JSON.stringify(value)}`)
+      }
+
+      if (parts.length > 0) {
+        message = parts.join(' ')
+      } else if (err?.status === 422) {
+        message = 'Card was declined or failed verification (422). Check the test card details and try again.'
+      }
+    } else if (err?.status === 422) {
+      message = 'Card was declined or failed verification (422). Check the test card details and try again.'
+    }
+  } catch {
+    if (err?.status === 422) {
+      message = 'Card was declined or failed verification (422). Check the test card details and try again.'
+    }
+  }
+
+  cardError.value = message
 }
 
 onMounted(async () => {

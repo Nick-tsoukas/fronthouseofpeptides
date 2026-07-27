@@ -156,6 +156,8 @@ export default defineEventHandler(async (event: H3Event) => {
     merchantAccountId: moovConfig.accountId,
     mode: moovConfig.mode,
     expiresIn,
+    customerName,
+    email,
     ...orderSummary,
   }
 })
