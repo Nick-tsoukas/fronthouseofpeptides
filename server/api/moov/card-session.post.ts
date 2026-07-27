@@ -40,6 +40,16 @@ export default defineEventHandler(async (event: H3Event) => {
       'email',
       'moovCustomerAccountId',
       'shippingStatus',
+      'paymentStatus',
+      'subtotalCents',
+      'shippingCents',
+      'shippingCostCents',
+      'taxCents',
+      'discountCents',
+      'totalCents',
+      'shippingCarrier',
+      'shippingService',
+      'shippingDeliveryDays',
       'shippingFirstName',
       'shippingLastName',
       'shippingAddress1',
@@ -55,12 +65,25 @@ export default defineEventHandler(async (event: H3Event) => {
     ],
   })
 
+  const orderSummary = {
+    orderNumber: attrs.orderNumber || '',
+    subtotalCents: Number(attrs.subtotalCents) || 0,
+    shippingCostCents: Number(attrs.shippingCostCents ?? attrs.shippingCents) || 0,
+    taxCents: Number(attrs.taxCents) || 0,
+    discountCents: Number(attrs.discountCents) || 0,
+    totalCents: Number(attrs.totalCents) || 0,
+    paymentStatus: attrs.paymentStatus || 'pending',
+    shippingStatus: attrs.shippingStatus || 'not_quoted',
+    shippingCarrier: attrs.shippingCarrier || '',
+    shippingService: attrs.shippingService || '',
+    shippingDeliveryDays: attrs.shippingDeliveryDays ?? null,
+  }
+
   if (attrs.shippingStatus !== 'selected') {
     return {
       ok: false,
       paymentBlocked: 'Shipping must be selected before payment.',
-      orderNumber: attrs.orderNumber,
-      shippingStatus: attrs.shippingStatus || 'not_quoted',
+      ...orderSummary,
     }
   }
 
@@ -123,6 +146,7 @@ export default defineEventHandler(async (event: H3Event) => {
     merchantAccountId: moovConfig.accountId,
     mode: moovConfig.mode,
     tokenExpiresIn: expiresIn,
+    totalCents: orderSummary.totalCents,
   })
 
   return {
@@ -132,8 +156,6 @@ export default defineEventHandler(async (event: H3Event) => {
     merchantAccountId: moovConfig.accountId,
     mode: moovConfig.mode,
     expiresIn,
-    orderNumber: attrs.orderNumber,
-    totalCents: attrs.totalCents,
-    shippingStatus: attrs.shippingStatus,
+    ...orderSummary,
   }
 })

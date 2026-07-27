@@ -97,6 +97,7 @@ export default defineEventHandler(async (event: H3Event) => {
           shippingService: safeRate.service,
           shippingDeliveryDays: safeRate.deliveryDays,
           shippingCostCents,
+          shippingCents: shippingCostCents,
           shippingStatus: 'selected',
           totalCents,
         },

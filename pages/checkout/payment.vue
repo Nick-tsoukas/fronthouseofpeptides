@@ -4,8 +4,8 @@
 
       <!-- Header -->
       <div class="mb-8">
-        <h1 class="text-3xl font-bold text-white">Payment</h1>
-        <p class="text-dark-400 mt-2">Link a test card to your order.</p>
+        <h1 class="text-3xl font-bold text-white">Secure Payment</h1>
+        <p class="text-dark-400 mt-2">Complete payment for your order.</p>
       </div>
 
       <!-- HTTPS required for Moov card iframes -->
@@ -24,6 +24,7 @@
 
       <!-- Test mode notice -->
       <div
+        v-if="isTestMode"
         class="mb-6 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex items-start gap-3"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -41,23 +42,31 @@
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <p class="text-dark-400">Initializing secure payment form...</p>
+        <p class="text-dark-400">Loading order and secure payment form...</p>
       </div>
 
       <!-- Error -->
       <div v-else-if="error" class="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
         <p class="text-red-400 text-sm">{{ error }}</p>
-        <button
-          @click="loadSession"
-          class="mt-3 px-4 py-2 bg-dark-800 hover:bg-dark-700 text-white text-sm rounded-lg transition-colors"
-        >
-          Try Again
-        </button>
+        <div class="mt-3 flex flex-wrap gap-3">
+          <button
+            @click="loadSession"
+            class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-white text-sm rounded-lg transition-colors"
+          >
+            Try Again
+          </button>
+          <NuxtLink
+            to="/checkout"
+            class="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-white text-sm rounded-lg transition-colors"
+          >
+            Return to Checkout
+          </NuxtLink>
+        </div>
       </div>
 
       <!-- Payment blocked (shipping not selected) -->
       <div v-else-if="paymentBlocked" class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-6">
-        <p class="text-yellow-400 text-sm font-medium">Payment Not Ready</p>
+        <p class="text-yellow-400 text-sm font-medium">Shipping must be selected first</p>
         <p class="text-yellow-200/70 text-sm mt-1">{{ paymentBlocked }}</p>
         <NuxtLink
           to="/checkout"
@@ -74,20 +83,56 @@
           <div class="space-y-2 text-sm">
             <div class="flex justify-between">
               <span class="text-dark-400">Order Number</span>
-              <span class="text-white font-mono">{{ orderNumber }}</span>
+              <span class="text-white font-mono">{{ orderNumber || '—' }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-dark-400">Total</span>
-              <span class="text-white font-semibold">{{ formatTotal }}</span>
+              <span class="text-dark-400">Shipping</span>
+              <span class="text-white text-right">
+                <template v-if="shippingCarrier || shippingService">
+                  {{ shippingCarrier }}{{ shippingCarrier && shippingService ? ' — ' : '' }}{{ shippingService }}
+                </template>
+                <template v-else>
+                  Selected
+                </template>
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-dark-400">Shipping Status</span>
+              <span class="inline-flex items-center gap-1.5 text-green-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                {{ displayShippingStatus }}
+              </span>
             </div>
             <div class="flex justify-between">
               <span class="text-dark-400">Payment Status</span>
               <span class="inline-flex items-center gap-1.5 text-yellow-400">
                 <span class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
-                Pending
+                {{ displayPaymentStatus }}
               </span>
             </div>
+
+            <div class="border-t border-dark-700 pt-3 mt-3 space-y-2">
+              <div class="flex justify-between text-dark-300">
+                <span>Product subtotal</span>
+                <span>{{ formatCents(subtotalCents) }}</span>
+              </div>
+              <div class="flex justify-between text-dark-300">
+                <span>Shipping</span>
+                <span>{{ formatCents(shippingCostCents) }}</span>
+              </div>
+              <div class="flex justify-between text-dark-300">
+                <span>Tax</span>
+                <span>{{ formatCents(taxCents) }}</span>
+              </div>
+              <div class="flex justify-between text-white font-semibold text-base pt-2 border-t border-dark-700">
+                <span>Total</span>
+                <span>{{ formatCents(totalCents) }}</span>
+              </div>
+            </div>
           </div>
+          <p class="text-dark-500 text-xs mt-4">
+            Totals are loaded from the server for this pending order. Cart contents are not used on this page.
+          </p>
         </div>
 
         <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
@@ -165,7 +210,7 @@
 
           <button
             @click="submitCard"
-            :disabled="isLinking || !cardReady"
+            :disabled="isLinking || !cardReady || needsHttps"
             class="w-full mt-6 py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-lg transition-all duration-200 text-lg flex items-center justify-center gap-2"
           >
             <svg v-if="isLinking" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -175,8 +220,16 @@
             {{ isLinking ? 'Linking Card...' : 'Link Test Card' }}
           </button>
 
+          <button
+            type="button"
+            disabled
+            class="w-full mt-3 py-4 bg-dark-700 text-dark-500 font-semibold rounded-lg text-lg cursor-not-allowed"
+          >
+            Submit Test Payment
+          </button>
+
           <p class="text-dark-500 text-xs text-center mt-3">
-            Card information is entered directly into Moov's secure iframe.
+            Link a test card first. Payment capture (Moov transfer) is disabled until the next stage — no charge is created on this page.
           </p>
         </div>
       </div>
@@ -193,19 +246,58 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { CURRENCY } from '~/constants'
 
+interface CardSessionResponse {
+  ok?: boolean
+  paymentBlocked?: string
+  accessToken?: string
+  customerAccountId?: string
+  merchantAccountId?: string
+  mode?: string
+  expiresIn?: number
+  orderNumber?: string
+  subtotalCents?: number
+  shippingCostCents?: number
+  taxCents?: number
+  discountCents?: number
+  totalCents?: number
+  paymentStatus?: string
+  shippingStatus?: string
+  shippingCarrier?: string
+  shippingService?: string
+  shippingDeliveryDays?: number | null
+}
+
 const route = useRoute()
 const router = useRouter()
+const config = useRuntimeConfig()
 
 const orderId = Number(route.query.orderId)
 const orderNumber = ref('')
+const subtotalCents = ref(0)
+const shippingCostCents = ref(0)
+const taxCents = ref(0)
 const totalCents = ref(0)
+const paymentStatus = ref('pending')
 const shippingStatus = ref('')
+const shippingCarrier = ref('')
+const shippingService = ref('')
 const paymentBlocked = ref<string | null>(null)
 const needsHttps = ref(false)
 
-const formatTotal = computed(() => {
-  const dollars = totalCents.value / 100
-  return `${CURRENCY.SYMBOL}${dollars.toFixed(2)}`
+const isTestMode = computed(() => {
+  return (config.public.moovMode as string || 'test') === 'test'
+})
+
+const formatCents = (cents: number) => `${CURRENCY.SYMBOL}${((Number(cents) || 0) / 100).toFixed(2)}`
+
+const displayPaymentStatus = computed(() => {
+  const status = paymentStatus.value || 'pending'
+  return status.charAt(0).toUpperCase() + status.slice(1)
+})
+
+const displayShippingStatus = computed(() => {
+  const status = shippingStatus.value || 'selected'
+  return status.split('_').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
 })
 
 const isLoading = ref(true)
@@ -235,6 +327,18 @@ const cardFormHeaders = computed(() => {
       }
     : {}
 })
+
+function applyOrderSummary(session: CardSessionResponse) {
+  orderNumber.value = session.orderNumber || ''
+  subtotalCents.value = Number(session.subtotalCents) || 0
+  shippingCostCents.value = Number(session.shippingCostCents) || 0
+  taxCents.value = Number(session.taxCents) || 0
+  totalCents.value = Number(session.totalCents) || 0
+  paymentStatus.value = session.paymentStatus || 'pending'
+  shippingStatus.value = session.shippingStatus || ''
+  shippingCarrier.value = session.shippingCarrier || ''
+  shippingService.value = session.shippingService || ''
+}
 
 function loadMoovScript(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -266,24 +370,29 @@ async function loadSession() {
       throw new Error('Missing order information.')
     }
 
-    const session = await $fetch('/api/moov/card-session', {
+    const session = await $fetch<CardSessionResponse>('/api/moov/card-session', {
       method: 'POST',
       body: { orderId },
       credentials: 'include',
     })
 
+    applyOrderSummary(session)
+
     if (session?.paymentBlocked) {
-      paymentBlocked.value = session.paymentBlocked as string
+      paymentBlocked.value = session.paymentBlocked
       isLoading.value = false
       return
     }
 
-    accessToken.value = (session as any).accessToken
-    customerAccountId.value = (session as any).customerAccountId
-    merchantAccountId.value = (session as any).merchantAccountId
-    orderNumber.value = (session as any).orderNumber || ''
-    totalCents.value = (session as any).totalCents || 0
-    shippingStatus.value = (session as any).shippingStatus || ''
+    if (session.shippingStatus !== 'selected') {
+      paymentBlocked.value = 'Shipping must be selected before payment.'
+      isLoading.value = false
+      return
+    }
+
+    accessToken.value = session.accessToken || ''
+    customerAccountId.value = session.customerAccountId || ''
+    merchantAccountId.value = session.merchantAccountId || ''
     showCardLink.value = true
 
     await nextTick()
@@ -380,6 +489,6 @@ onMounted(async () => {
 })
 
 useHead({
-  title: 'Payment — Quantum Bio Peptides',
+  title: 'Secure Payment — Quantum Bio Peptides',
 })
 </script>
