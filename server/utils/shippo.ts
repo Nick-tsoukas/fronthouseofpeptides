@@ -215,12 +215,15 @@ export async function purchaseShippoLabelFromRate(
     throw new Error('Shippo rate ID is required.')
   }
 
+  // Default sync (async:false) so checkout fulfillment gets label URL immediately when possible.
+  const useAsync = options.async === true
+
   const transaction = await shippoFetch<ShippoTransaction>(config, '/transactions/', {
     method: 'POST',
     body: {
       rate: rateId,
       label_file_type: options.labelFileType || 'PDF_4x6',
-      async: options.async === true,
+      async: useAsync,
     },
   })
 

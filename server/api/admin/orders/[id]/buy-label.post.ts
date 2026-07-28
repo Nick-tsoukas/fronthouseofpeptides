@@ -58,52 +58,101 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // If transaction exists but label URL missing, try to refresh from Shippo
-  if (attrs.shippoTransactionId && !attrs.shippingLabelUrl) {
+  // If a transaction is in flight (or label URL missing), refresh — never buy a second label
+  if (attrs.shippoTransactionId) {
     const shippoConfig = getShippoConfig(event)
-    if (shippoConfig.apiToken) {
-      try {
-        const existing = await getShippoTransaction(shippoConfig, attrs.shippoTransactionId)
-        const status = String(existing.status || '').toUpperCase()
-        if (status === 'SUCCESS' && existing.label_url) {
-          const patch = {
-            shippingLabelUrl: existing.label_url,
-            trackingNumber: existing.tracking_number || attrs.trackingNumber || null,
-            trackingUrl: existing.tracking_url_provider || attrs.trackingUrl || null,
-            shippingStatus: 'label_purchased',
-            labelPurchasedAt: attrs.labelPurchasedAt || new Date().toISOString(),
-            labelErrorMessage: null,
-          }
-          await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
-            method: 'PUT',
-            headers,
-            body: { data: patch },
-          })
-          return {
-            ok: true,
-            orderNumber: attrs.orderNumber || null,
-            shippingStatus: 'label_purchased',
-            shippoTransactionId: attrs.shippoTransactionId,
-            shippingLabelUrl: existing.label_url,
-            trackingNumber: patch.trackingNumber,
-            trackingUrl: patch.trackingUrl,
-            alreadyPurchased: true,
-          }
+    if (!shippoConfig.apiToken) {
+      throw createError({ statusCode: 500, message: 'Shippo is not configured.' })
+    }
+
+    try {
+      const existing = await getShippoTransaction(shippoConfig, attrs.shippoTransactionId)
+      const status = String(existing.status || '').toUpperCase()
+
+      if (status === 'SUCCESS' && existing.label_url) {
+        const patch = {
+          shippingLabelUrl: existing.label_url,
+          trackingNumber: existing.tracking_number || attrs.trackingNumber || null,
+          trackingUrl: existing.tracking_url_provider || attrs.trackingUrl || null,
+          shippingStatus: 'label_purchased',
+          labelPurchasedAt: attrs.labelPurchasedAt || new Date().toISOString(),
+          labelErrorMessage: null,
         }
-        if (status === 'WAITING' || status === 'QUEUED') {
-          return {
-            ok: true,
-            orderNumber: attrs.orderNumber || null,
-            shippingStatus: 'label_purchasing',
-            shippoTransactionId: attrs.shippoTransactionId,
-            shippingLabelUrl: null,
-            trackingNumber: attrs.trackingNumber || null,
-            trackingUrl: attrs.trackingUrl || null,
-            message: 'Label is being generated. Check again shortly.',
-          }
+        await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
+          method: 'PUT',
+          headers,
+          body: { data: patch },
+        })
+        return {
+          ok: true,
+          orderNumber: attrs.orderNumber || null,
+          shippingStatus: 'label_purchased',
+          shippoTransactionId: attrs.shippoTransactionId,
+          shippingLabelUrl: existing.label_url,
+          trackingNumber: patch.trackingNumber,
+          trackingUrl: patch.trackingUrl,
+          alreadyPurchased: true,
         }
-      } catch (err: any) {
-        console.error('Shippo transaction refresh failed:', err?.message || err)
+      }
+
+      if (status === 'WAITING' || status === 'QUEUED' || attrs.shippingStatus === 'label_purchasing') {
+        await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
+          method: 'PUT',
+          headers,
+          body: { data: { shippingStatus: 'label_purchasing', labelErrorMessage: null } },
+        }).catch(() => {})
+
+        return {
+          ok: true,
+          orderNumber: attrs.orderNumber || null,
+          shippingStatus: 'label_purchasing',
+          shippoTransactionId: attrs.shippoTransactionId,
+          shippingLabelUrl: existing.label_url || null,
+          trackingNumber: existing.tracking_number || attrs.trackingNumber || null,
+          trackingUrl: existing.tracking_url_provider || attrs.trackingUrl || null,
+          message: 'Label is being generated. Check again shortly.',
+        }
+      }
+
+      if (status === 'ERROR') {
+        const errorMessage =
+          (existing.messages || [])
+            .map((m: any) => m?.text)
+            .filter(Boolean)
+            .slice(0, 3)
+            .join('; ') || 'Shippo returned an error creating the label.'
+
+        await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
+          method: 'PUT',
+          headers,
+          body: {
+            data: {
+              shippingStatus: 'label_failed',
+              labelErrorMessage: errorMessage,
+            },
+          },
+        }).catch(() => {})
+
+        throw createError({
+          statusCode: 502,
+          message: errorMessage,
+        })
+      }
+    } catch (err: any) {
+      if (err?.statusCode === 502) throw err
+      console.error('Shippo transaction refresh failed:', err?.message || err)
+      // Fall through only if no in-flight purchase — otherwise do not create a duplicate
+      if (attrs.shippingStatus === 'label_purchasing') {
+        return {
+          ok: true,
+          orderNumber: attrs.orderNumber || null,
+          shippingStatus: 'label_purchasing',
+          shippoTransactionId: attrs.shippoTransactionId,
+          shippingLabelUrl: null,
+          trackingNumber: attrs.trackingNumber || null,
+          trackingUrl: attrs.trackingUrl || null,
+          message: 'Label is being generated. Check again shortly.',
+        }
       }
     }
   }

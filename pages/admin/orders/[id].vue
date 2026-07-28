@@ -180,9 +180,9 @@
             type="button"
             class="px-4 py-2.5 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-lg"
             :disabled="!!actionLoading"
-            @click="refreshOrder"
+            @click="refreshLabelStatus"
           >
-            Refresh Order
+            {{ actionLoading === 'buy' ? 'Checking…' : 'Refresh Order' }}
           </button>
 
           <a
@@ -337,6 +337,28 @@ const fulfillmentHintClass = computed(() => {
 async function refreshOrder() {
   const data = await $fetch(`/api/admin/orders/${orderId.value}`, { credentials: 'include' })
   order.value = data
+}
+
+/** Re-check Shippo for an in-flight transaction (idempotent — does not buy a new label). */
+async function refreshLabelStatus() {
+  actionLoading.value = 'buy'
+  try {
+    const res = await $fetch<any>(`/api/admin/orders/${orderId.value}/buy-label`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    await refreshOrder()
+    if (res.shippingStatus === 'label_purchased') {
+      showToast('success', 'Shipping label is ready.')
+    } else {
+      showToast('success', res.message || 'Label is still being generated.')
+    }
+  } catch (err: any) {
+    showToast('error', err.data?.message || err.message || 'Could not refresh label status.')
+    await refreshOrder().catch(() => {})
+  } finally {
+    actionLoading.value = ''
+  }
 }
 
 async function buyLabel() {
