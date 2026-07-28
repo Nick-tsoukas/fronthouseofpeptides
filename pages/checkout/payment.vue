@@ -110,8 +110,9 @@
             <p class="text-emerald-100/80 text-sm mt-1">Redirecting to your order confirmation…</p>
           </div>
 
+          <!-- After Moov callbacks only — never unmount the Drop during card submit -->
           <div
-            v-else-if="isBusy"
+            v-else-if="paymentStage === 'preparing' || paymentStage === 'processing_payment'"
             class="rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-5 text-center"
           >
             <div class="mx-auto mb-3 h-8 w-8 rounded-full border-2 border-primary-500/30 border-t-primary-400 animate-spin" />
@@ -120,7 +121,7 @@
 
           <template v-else>
             <!-- Contact / billing -->
-            <div class="mb-6 space-y-4">
+            <div class="mb-6 space-y-4" :class="{ 'opacity-60 pointer-events-none': paymentStage === 'card_submitting' }">
               <h3 class="text-sm font-semibold text-white tracking-wide">Billing & contact</h3>
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -202,8 +203,8 @@
               </div>
             </div>
 
-            <!-- Card fields -->
-            <div class="mb-2">
+            <!-- Card fields — must stay mounted until Moov onSuccess/onError -->
+            <div class="mb-2" :class="{ 'opacity-60 pointer-events-none': paymentStage === 'card_submitting' }">
               <h3 class="text-sm font-semibold text-white tracking-wide mb-3">Card details</h3>
               <ClientOnly>
                 <div class="payment-card-drop-shell">
@@ -238,6 +239,10 @@
                 disabled:bg-dark-800 disabled:text-dark-500 disabled:border disabled:border-dark-700 disabled:cursor-not-allowed
                 shadow-lg shadow-primary-500/10 disabled:shadow-none"
             >
+              <svg v-if="paymentStage === 'card_submitting'" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
               {{ payButtonLabel }}
             </button>
           </template>
@@ -311,7 +316,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { CURRENCY } from '~/constants'
 
 interface CardSessionResponse {
@@ -411,7 +416,6 @@ const isBusy = computed(() =>
 
 const busyMessage = computed(() => {
   if (paymentStage.value === 'preparing') return 'Card verified. Preparing payment…'
-  if (paymentStage.value === 'processing_payment') return 'Processing secure payment…'
   return 'Processing secure payment…'
 })
 
@@ -452,9 +456,17 @@ const cardReady = ref(false)
 const showCardForm = ref(false)
 const cardLinkRef = ref<any>(null)
 
+const payButtonLabel = computed(() => {
+  if (paymentStage.value === 'card_submitting') return 'Processing secure payment…'
+  if (!cardReady.value) return 'Loading secure payment form…'
+  return `Pay ${formatCents(totalCents.value)}`
+})
+
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 let pollAttempts = 0
+let submitWatchdog: ReturnType<typeof setTimeout> | null = null
 const MAX_POLL_ATTEMPTS = 40
+const CARD_SUBMIT_TIMEOUT_MS = 45000
 
 const canPay = computed(() => {
   return (
@@ -467,11 +479,6 @@ const canPay = computed(() => {
     Boolean(cardholderName.value.trim()) &&
     Boolean(effectiveBillingAddress().postalCode)
   )
-})
-
-const payButtonLabel = computed(() => {
-  if (!cardReady.value) return 'Loading secure payment form…'
-  return `Pay ${formatCents(totalCents.value)}`
 })
 
 function effectiveBillingAddress() {
@@ -547,7 +554,36 @@ function getCardLinkElement(): any {
 function applyBillingToDrop(drop: any) {
   const name = cardholderName.value.trim() || `${firstName.value} ${lastName.value}`.trim()
   if (name) drop.holderName = name
-  drop.billingAddress = effectiveBillingAddress()
+
+  const billing = effectiveBillingAddress()
+  // Only send clean string fields — undefined keys can break the Drop iframe.
+  const clean: Record<string, string> = {
+    postalCode: String(billing.postalCode || '').trim(),
+    country: String(billing.country || 'US').trim() || 'US',
+  }
+  if (billing.addressLine1) clean.addressLine1 = String(billing.addressLine1).trim()
+  if (billing.addressLine2) clean.addressLine2 = String(billing.addressLine2).trim()
+  if (billing.city) clean.city = String(billing.city).trim()
+  if (billing.stateOrProvince) clean.stateOrProvince = String(billing.stateOrProvince).trim()
+  drop.billingAddress = clean
+}
+
+function clearSubmitWatchdog() {
+  if (submitWatchdog) {
+    clearTimeout(submitWatchdog)
+    submitWatchdog = null
+  }
+}
+
+function armSubmitWatchdog() {
+  clearSubmitWatchdog()
+  submitWatchdog = setTimeout(() => {
+    if (paymentStage.value !== 'card_submitting') return
+    console.error('Moov card submit timed out without success/error callback')
+    cardError.value =
+      'Payment form timed out. Please check your card details and try again.'
+    paymentStage.value = 'ready'
+  }, CARD_SUBMIT_TIMEOUT_MS)
 }
 
 function configureCardLinkDrop(retries = 0) {
@@ -578,21 +614,6 @@ function configureCardLinkDrop(retries = 0) {
     error.value = 'Secure payment form could not be initialized.'
   }
 }
-
-watch(
-  [
-    cardholderName,
-    billingSameAsShipping,
-    shippingAddress1,
-    shippingPostalCode,
-    billingAddress1,
-    billingPostalCode,
-  ],
-  () => {
-    const drop = getCardLinkElement()
-    if (drop) applyBillingToDrop(drop)
-  }
-)
 
 function applyOrderSummary(session: CardSessionResponse) {
   orderNumber.value = session.orderNumber || ''
@@ -732,24 +753,22 @@ async function submitPayment() {
     return
   }
 
-  paymentStage.value = 'card_submitting'
-
   try {
     const drop = getCardLinkElement()
     if (!drop || typeof drop.submit !== 'function') {
       throw new Error('Payment form is not ready.')
     }
 
-    drop.oauthToken = accessToken.value
-    drop.accountID = customerAccountId.value
-    drop.merchantAccountID = merchantAccountId.value
-    drop.cardOnFile = true
-    drop.inputStyle = { ...MOOV_INPUT_STYLE }
+    // Do not recreate the Drop iframe. Only refresh callbacks + billing, then submit.
     applyBillingToDrop(drop)
     drop.onSuccess = handleCardSuccess
     drop.onError = handleCardError
+
+    paymentStage.value = 'card_submitting'
+    armSubmitWatchdog()
     drop.submit()
   } catch (err: any) {
+    clearSubmitWatchdog()
     console.error('Payment submit error:', err)
     cardError.value = err.message || 'Could not submit payment.'
     paymentStage.value = 'ready'
@@ -757,6 +776,7 @@ async function submitPayment() {
 }
 
 async function handleCardSuccess(payload: any) {
+  clearSubmitWatchdog()
   try {
     const cardId = extractMoovCardId(payload)
     if (!cardId) {
@@ -800,6 +820,7 @@ async function handleCardSuccess(payload: any) {
 }
 
 async function handleCardError(clientError: any, apiError?: any) {
+  clearSubmitWatchdog()
   console.error('Moov payment form error:', clientError, apiError)
   paymentStage.value = 'ready'
 
@@ -915,6 +936,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopPolling()
+  clearSubmitWatchdog()
 })
 
 useHead({
