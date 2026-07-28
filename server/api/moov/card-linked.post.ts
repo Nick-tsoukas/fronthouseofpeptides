@@ -8,6 +8,38 @@ interface RequestBody {
   cardId?: string
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function findCardPaymentMethod(
+  moovConfig: ReturnType<typeof getMoovConfig>,
+  customerAccountId: string,
+  cardId: string
+) {
+  const maxAttempts = 5
+  const delayMs = 400
+  let lastMethods: any[] = []
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    lastMethods = await getAccountPaymentMethods(moovConfig, customerAccountId)
+
+    const match = lastMethods.find(
+      (pm) => pm.paymentMethodType === 'card-payment' && pm.card?.cardID === cardId
+    )
+
+    if (match) {
+      return match
+    }
+
+    if (attempt < maxAttempts) {
+      await sleep(delayMs)
+    }
+  }
+
+  return null
+}
+
 export default defineEventHandler(async (event: H3Event) => {
   const config = useRuntimeConfig(event)
   const strapiUrl = config.public.strapiUrl as string
@@ -34,7 +66,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const { attributes: attrs } = await validateCheckoutSession(event, {
     orderId,
     token: checkoutSessionToken || undefined,
-    requiredFields: ['orderNumber', 'moovCustomerAccountId'],
+    requiredFields: ['orderNumber', 'moovCustomerAccountId', 'paymentStatus', 'inventoryCommitted'],
   })
 
   const customerAccountId = attrs.moovCustomerAccountId
@@ -51,31 +83,30 @@ export default defineEventHandler(async (event: H3Event) => {
     throw createError({ statusCode: 502, message: 'Could not verify card. Please try again.' })
   }
 
-  const matchingCard = cards.find((c) => c.cardID === cardId)
+  const matchingCard = cards.find((c) => c.cardID === cardId || c.cardId === cardId)
   if (!matchingCard) {
     throw createError({ statusCode: 400, message: 'Card does not belong to this payment account.' })
   }
 
-  // Locate the card payment method
-  let paymentMethods: any[] = []
+  // Payment methods can lag briefly after card creation — retry before failing.
+  let cardPaymentMethod: any = null
   try {
-    paymentMethods = await getAccountPaymentMethods(moovConfig, customerAccountId)
+    cardPaymentMethod = await findCardPaymentMethod(moovConfig, customerAccountId, cardId)
   } catch (err: any) {
     console.error('Moov payment methods lookup failed:', err?.message || err)
     throw createError({ statusCode: 502, message: 'Could not retrieve payment methods. Please try again.' })
   }
 
-  const cardPaymentMethod = paymentMethods.find(
-    (pm) => pm.paymentMethodType === 'card-payment' && pm.card?.cardID === cardId
-  )
-
   if (!cardPaymentMethod) {
-    throw createError({ statusCode: 400, message: 'Card payment method could not be verified.' })
+    throw createError({
+      statusCode: 400,
+      message: 'Card payment method could not be verified yet. Please wait a moment and try again.',
+    })
   }
 
   const moovPaymentMethodId = cardPaymentMethod.paymentMethodID
 
-  // Save card and payment method IDs on the order
+  // Save card and payment method IDs on the order — keep payment pending.
   const now = new Date().toISOString()
   try {
     await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
@@ -86,6 +117,8 @@ export default defineEventHandler(async (event: H3Event) => {
           moovCardId: cardId,
           moovPaymentMethodId,
           moovCardLinkedAt: now,
+          paymentStatus: 'pending',
+          inventoryCommitted: false,
         },
       },
     })
@@ -94,11 +127,12 @@ export default defineEventHandler(async (event: H3Event) => {
     throw createError({ statusCode: 502, message: 'Could not save card details. Please try again.' })
   }
 
-  safeLog('Moov card linked', {
+  safeLog('Moov card verified (pending payment)', {
     orderId,
     customerAccountId,
     cardId,
     paymentMethodId: moovPaymentMethodId,
+    paymentStatus: 'pending',
   })
 
   return {
@@ -107,6 +141,7 @@ export default defineEventHandler(async (event: H3Event) => {
     cardVerified: true,
     paymentReady: true,
     paymentStatus: 'pending',
+    inventoryCommitted: false,
     // Internal compatibility for older clients
     cardLinked: true,
   }

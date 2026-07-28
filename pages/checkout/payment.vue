@@ -337,39 +337,126 @@ const canPay = computed(() => {
 })
 
 const payButtonLabel = computed(() => {
-  if (isProcessing.value) return 'Processing payment…'
+  if (isProcessing.value) return 'Processing secure card verification…'
   if (!cardReady.value) return 'Loading secure payment form…'
   return `Pay ${formatCents(totalCents.value)}`
 })
 
-function extractMoovCardId(payload: any): string | null {
-  return (
-    payload?.cardID ??
-    payload?.cardId ??
-    payload?.id ??
-    payload?.detail?.cardID ??
-    payload?.detail?.cardId ??
-    payload?.detail?.id ??
-    payload?.detail?.result?.cardID ??
-    payload?.detail?.result?.cardId ??
-    payload?.detail?.data?.cardID ??
-    payload?.detail?.data?.cardId ??
-    payload?.card?.cardID ??
-    payload?.card?.cardId ??
-    null
-  )
+function normalizeMoovSuccessPayload(payload: any): any {
+  if (!payload) return null
+
+  if (typeof payload === 'string') {
+    return { cardID: payload }
+  }
+
+  if (typeof CustomEvent !== 'undefined' && payload instanceof CustomEvent) {
+    return payload.detail
+  }
+
+  // Some Drop builds pass an Event-like object with detail.
+  if (payload?.detail != null && typeof payload.detail === 'object') {
+    return payload.detail
+  }
+
+  return payload
 }
 
-function logSafeMoovPayloadShape(payload: any) {
-  if (!isTestMode.value || !import.meta.dev) return
+function extractMoovCardId(payload: any): string | null {
+  const normalized = normalizeMoovSuccessPayload(payload)
+  const candidates = [
+    normalized?.cardID,
+    normalized?.cardId,
+    normalized?.id,
+    normalized?.result?.cardID,
+    normalized?.result?.cardId,
+    normalized?.data?.cardID,
+    normalized?.data?.cardId,
+    normalized?.card?.cardID,
+    normalized?.card?.cardId,
+    normalized?.detail?.cardID,
+    normalized?.detail?.cardId,
+    normalized?.detail?.result?.cardID,
+    normalized?.detail?.result?.cardId,
+    normalized?.detail?.data?.cardID,
+    normalized?.detail?.data?.cardId,
+    // Fallbacks if normalize didn't unwrap and raw payload still has nested fields
+    payload?.cardID,
+    payload?.cardId,
+    payload?.id,
+    payload?.detail?.cardID,
+    payload?.detail?.cardId,
+    payload?.detail?.result?.cardID,
+    payload?.detail?.result?.cardId,
+    payload?.detail?.data?.cardID,
+    payload?.detail?.data?.cardId,
+    payload?.card?.cardID,
+    payload?.card?.cardId,
+  ]
+
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+
+  return null
+}
+
+function collectIdCardKeyPaths(value: any, path = '', depth = 0, out: string[] = []): string[] {
+  if (!value || typeof value !== 'object' || depth > 4) return out
+
+  for (const key of Object.keys(value)) {
+    const nextPath = path ? `${path}.${key}` : key
+    const lower = key.toLowerCase()
+    if (lower.includes('card') || lower.includes('id')) {
+      out.push(nextPath)
+    }
+    collectIdCardKeyPaths(value[key], nextPath, depth + 1, out)
+  }
+
+  return out
+}
+
+function logSafeMoovPayloadShape(payload: any, label = 'success') {
+  if (!isTestMode.value) return
+
   try {
+    const normalized = normalizeMoovSuccessPayload(payload)
     const topKeys = payload && typeof payload === 'object' ? Object.keys(payload) : []
     const detailKeys =
       payload?.detail && typeof payload.detail === 'object' ? Object.keys(payload.detail) : []
-    console.info('[moov-payment] success payload shape', { topKeys, detailKeys })
+    const normalizedKeys =
+      normalized && typeof normalized === 'object' ? Object.keys(normalized) : []
+    const interestingPaths = collectIdCardKeyPaths(normalized || payload).slice(0, 40)
+
+    console.info(`[moov-payment] ${label} payload shape`, {
+      typeofPayload: typeof payload,
+      constructorName: payload?.constructor?.name || null,
+      topKeys,
+      detailKeys,
+      normalizedKeys,
+      interestingPaths,
+      extractedCardIdPresent: Boolean(extractMoovCardId(payload)),
+    })
   } catch {
     // ignore logging failures
   }
+}
+
+function getCardLinkElement(): any {
+  if (!import.meta.client) return null
+
+  const refVal = cardLinkRef.value as any
+
+  if (refVal && typeof refVal.submit === 'function') {
+    return refVal
+  }
+
+  if (refVal?.$el && typeof refVal.$el.submit === 'function') {
+    return refVal.$el
+  }
+
+  return document.querySelector('moov-card-link') as any
 }
 
 function applyOrderSummary(session: CardSessionResponse) {
@@ -405,8 +492,8 @@ function loadMoovScript(): Promise<void> {
 }
 
 function configureCardLinkDrop(retries = 0) {
-  const drop = cardLinkRef.value
-  if (drop) {
+  const drop = getCardLinkElement()
+  if (drop && typeof drop.submit === 'function') {
     drop.oauthToken = accessToken.value
     drop.accountID = customerAccountId.value
     drop.merchantAccountID = merchantAccountId.value
@@ -415,11 +502,18 @@ function configureCardLinkDrop(retries = 0) {
     if (customerName.value) drop.holderName = customerName.value
     drop.onSuccess = handleCardSuccess
     drop.onError = handleCardError
+
+    // Also listen for CustomEvent-style success if the Drop dispatches events.
+    if (typeof drop.addEventListener === 'function' && !drop.__qbpSuccessBound) {
+      drop.addEventListener('success', (event: any) => handleCardSuccess(event))
+      drop.__qbpSuccessBound = true
+    }
+
     cardReady.value = true
     return
   }
 
-  if (retries < 12) {
+  if (retries < 20) {
     setTimeout(() => configureCardLinkDrop(retries + 1), 100)
   } else {
     cardReady.value = false
@@ -492,7 +586,7 @@ async function submitPayment() {
   paymentStage.value = 'processing'
 
   try {
-    const drop = cardLinkRef.value
+    const drop = getCardLinkElement()
     if (!drop || typeof drop.submit !== 'function') {
       throw new Error('Payment form is not ready.')
     }
@@ -501,6 +595,10 @@ async function submitPayment() {
     drop.accountID = customerAccountId.value
     drop.merchantAccountID = merchantAccountId.value
     drop.cardOnFile = true
+    drop.inputStyle = { ...MOOV_INPUT_STYLE }
+    if (customerName.value) drop.holderName = customerName.value
+    drop.onSuccess = handleCardSuccess
+    drop.onError = handleCardError
     drop.submit()
   } catch (err: any) {
     console.error('Payment submit error:', err)
@@ -512,10 +610,13 @@ async function submitPayment() {
 
 async function handleCardSuccess(payload: any) {
   try {
-    logSafeMoovPayloadShape(payload)
+    logSafeMoovPayloadShape(payload, 'success')
 
     const cardId = extractMoovCardId(payload)
     if (!cardId) {
+      if (isTestMode.value) {
+        console.warn('[moov-payment] cardID extraction failed after normalize')
+      }
       throw new Error('Payment provider did not return a usable card reference. Please try again.')
     }
 
@@ -542,6 +643,11 @@ async function handleCardError(clientError: any, apiError?: any) {
   console.error('Moov payment form error:', clientError, apiError)
   isProcessing.value = false
   paymentStage.value = 'ready'
+
+  if (isTestMode.value) {
+    logSafeMoovPayloadShape(clientError, 'client-error')
+    logSafeMoovPayloadShape(apiError, 'api-error')
+  }
 
   let message = 'Payment failed. Please check your card details and try again.'
 
