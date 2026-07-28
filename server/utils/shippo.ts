@@ -178,3 +178,85 @@ export function sanitizeRate(rate: ShippoRate): {
     test: true,
   }
 }
+
+export interface ShippoTransaction {
+  object_id: string
+  status: string
+  label_url?: string | null
+  tracking_number?: string | null
+  tracking_url_provider?: string | null
+  rate?: string | { object_id?: string; amount?: string; currency?: string } | null
+  messages?: Array<{ text?: string; source?: string; code?: string }>
+}
+
+export interface PurchaseLabelResult {
+  transactionId: string
+  status: 'SUCCESS' | 'ERROR' | 'WAITING' | 'QUEUED' | string
+  labelUrl: string | null
+  trackingNumber: string | null
+  trackingUrl: string | null
+  labelCostCents: number | null
+  errorMessage: string | null
+}
+
+/**
+ * Purchase a shipping label from an existing Shippo rate (sync when possible).
+ * Uses PDF_4x6 by default for thermal label printers.
+ */
+export async function purchaseShippoLabelFromRate(
+  config: ShippoConfig,
+  rateId: string,
+  options: { labelFileType?: string; async?: boolean } = {}
+): Promise<PurchaseLabelResult> {
+  if (!config.apiToken) {
+    throw new Error('Shippo API token is not configured.')
+  }
+  if (!rateId) {
+    throw new Error('Shippo rate ID is required.')
+  }
+
+  const transaction = await shippoFetch<ShippoTransaction>(config, '/transactions/', {
+    method: 'POST',
+    body: {
+      rate: rateId,
+      label_file_type: options.labelFileType || 'PDF_4x6',
+      async: options.async === true,
+    },
+  })
+
+  const status = String(transaction.status || '').toUpperCase()
+  let labelCostCents: number | null = null
+  if (transaction.rate && typeof transaction.rate === 'object' && transaction.rate.amount) {
+    try {
+      labelCostCents = toCentsFromDecimal(String(transaction.rate.amount))
+    } catch {
+      labelCostCents = null
+    }
+  }
+
+  const errorMessage =
+    status === 'ERROR'
+      ? (transaction.messages || [])
+          .map((m) => m?.text)
+          .filter(Boolean)
+          .slice(0, 3)
+          .join('; ') || 'Shippo returned an error creating the label.'
+      : null
+
+  return {
+    transactionId: transaction.object_id,
+    status,
+    labelUrl: transaction.label_url || null,
+    trackingNumber: transaction.tracking_number || null,
+    trackingUrl: transaction.tracking_url_provider || null,
+    labelCostCents,
+    errorMessage,
+  }
+}
+
+export async function getShippoTransaction(
+  config: ShippoConfig,
+  transactionId: string
+): Promise<ShippoTransaction> {
+  return await shippoFetch<ShippoTransaction>(config, `/transactions/${transactionId}`)
+}

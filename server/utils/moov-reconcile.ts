@@ -252,6 +252,14 @@ export async function applyVerifiedTransferToOrder(opts: {
     if (attrs.status === 'awaiting_payment') {
       updateData.status = 'approved'
     }
+    // Paid orders with a selected Shippo rate become ready to buy a label
+    if (
+      attrs.shippoRateId &&
+      !attrs.shippoTransactionId &&
+      (attrs.shippingStatus === 'selected' || attrs.shippingStatus === 'quoted')
+    ) {
+      updateData.shippingStatus = 'ready_to_ship'
+    }
     shouldSendEmails = sendEmailsOnPaid
 
     if (!alreadyCommitted) {

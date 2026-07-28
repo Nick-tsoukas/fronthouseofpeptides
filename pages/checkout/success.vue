@@ -78,7 +78,13 @@
             v-if="isPaid"
             class="text-dark-400 mt-2 text-sm leading-relaxed"
           >
-            Your order has been received. A receipt has been emailed to the address provided at checkout.
+            Payment confirmed. A receipt has been emailed to you.
+          </p>
+          <p
+            v-if="isPaid"
+            class="text-dark-500 mt-1 text-sm leading-relaxed"
+          >
+            You will receive tracking when your order ships.
           </p>
         </div>
 

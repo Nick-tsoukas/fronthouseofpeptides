@@ -436,3 +436,82 @@ export async function sendPaidOrderEmails(
 
   return { customerSent, ownerSent, errors }
 }
+
+function buildTrackingEmailHtml(data: {
+  orderNumber: string
+  customerName: string
+  carrier: string
+  service: string
+  trackingNumber: string
+  trackingUrl: string
+}): string {
+  const carrierLine =
+    data.carrier || data.service
+      ? `<p style="margin:0 0 8px;color:#9ca3af;">Carrier: <strong style="color:#fff;">${data.carrier || '—'}</strong>${
+          data.service ? ` · ${data.service}` : ''
+        }</p>`
+      : ''
+
+  return `
+  <div style="font-family:system-ui,-apple-system,sans-serif;background:#0b1220;padding:32px;color:#e5e7eb;">
+    <div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:28px;">
+      <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Your order has tracking</h1>
+      <p style="margin:0 0 16px;color:#9ca3af;">Your order is being prepared for shipment.</p>
+      <p style="margin:0 0 8px;color:#9ca3af;">Order number: <strong style="color:#fff;font-family:monospace;">${data.orderNumber}</strong></p>
+      ${carrierLine}
+      <p style="margin:0 0 8px;color:#9ca3af;">Tracking number: <strong style="color:#fff;font-family:monospace;">${data.trackingNumber}</strong></p>
+      <p style="margin:24px 0 0;">
+        <a href="${data.trackingUrl}" style="display:inline-block;background:#06b6d4;color:#041016;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:10px;">
+          Track your package
+        </a>
+      </p>
+    </div>
+  </div>`
+}
+
+export async function sendTrackingEmail(
+  data: {
+    orderNumber: string
+    email: string
+    customerName: string
+    carrier: string
+    service: string
+    trackingNumber: string
+    trackingUrl: string
+  },
+  config: {
+    smtpHost: string
+    smtpPort: string
+    smtpUser: string
+    smtpPass: string
+    orderFromEmail: string
+  }
+): Promise<{ sent: boolean; error?: string }> {
+  if (!config.smtpHost || !config.smtpUser || !config.smtpPass || !config.orderFromEmail) {
+    return { sent: false, error: 'SMTP not configured.' }
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: config.smtpHost,
+    port: parseInt(config.smtpPort, 10) || 587,
+    secure: false,
+    auth: {
+      user: config.smtpUser,
+      pass: config.smtpPass,
+    },
+  })
+
+  try {
+    await transporter.sendMail({
+      from: config.orderFromEmail,
+      to: data.email,
+      subject: 'Your Quantum Bio Peptides order has tracking',
+      html: buildTrackingEmailHtml(data),
+    })
+    return { sent: true }
+  } catch (err: any) {
+    console.error(`[email] Tracking email failed for ${data.orderNumber}:`, err?.message || err)
+    return { sent: false, error: 'Could not send tracking email.' }
+  }
+}
+
