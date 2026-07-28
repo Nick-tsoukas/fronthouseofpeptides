@@ -192,39 +192,45 @@ export default defineEventHandler(async (event: H3Event) => {
     subtotalCents += toCents(unitPrice) * quantity
   }
 
-  // Verify shipping amount from selected Shippo rate when shipment data is available
+  // Verify shipping amount from selected Shippo rate when shipment data is available.
+  // Soft-fail: expired Shippo shipments must not block Moov charge if cents are already stored.
   let shippingCostCents = Number(attrs.shippingCostCents) || 0
   if (attrs.shippoShipmentId && attrs.shippoRateId) {
     const shippoConfig = getShippoConfig(event)
-    if (!shippoConfig.apiToken) {
-      throw createError({ statusCode: 500, message: 'Shipping integration is not configured.' })
-    }
-
-    try {
-      const shipment = await shippoFetch<ShippoShipment>(
-        shippoConfig,
-        `/shipments/${attrs.shippoShipmentId}/`
-      )
-      const rates: ShippoRate[] = shipment.rates || []
-      const selectedRate = rates.find((r) => r.object_id === attrs.shippoRateId)
-      if (!selectedRate) {
-        throw createError({ statusCode: 400, message: 'Selected shipping rate is no longer valid.' })
-      }
-      if (selectedRate.currency !== 'USD') {
-        throw createError({ statusCode: 400, message: 'Only USD shipping rates are supported.' })
-      }
-      const safeRate = sanitizeRate(selectedRate)
-      shippingCostCents = safeRate.amountCents
-      if (shippingCostCents !== Number(attrs.shippingCostCents)) {
-        throw createError({
-          statusCode: 400,
-          message: 'Shipping cost changed. Return to checkout and select a shipping rate again.',
+    if (shippoConfig.apiToken) {
+      try {
+        const shipment = await shippoFetch<ShippoShipment>(
+          shippoConfig,
+          `/shipments/${attrs.shippoShipmentId}/`
+        )
+        const rates: ShippoRate[] = shipment.rates || []
+        const selectedRate = rates.find((r) => r.object_id === attrs.shippoRateId)
+        if (selectedRate && selectedRate.currency === 'USD') {
+          const safeRate = sanitizeRate(selectedRate)
+          if (safeRate.amountCents !== Number(attrs.shippingCostCents)) {
+            throw createError({
+              statusCode: 400,
+              message: 'Shipping cost changed. Return to checkout and select a shipping rate again.',
+            })
+          }
+          shippingCostCents = safeRate.amountCents
+        } else {
+          checkoutTrace('create-transfer:shippo-rate-unavailable', {
+            orderId,
+            orderNumber: attrs.orderNumber,
+            strapiHost,
+            paymentStatus: attrs.paymentStatus,
+          })
+        }
+      } catch (err: any) {
+        if (err?.statusCode === 400) throw err
+        console.error('Shippo rate verification skipped:', err?.message || err)
+        checkoutTrace('create-transfer:shippo-verify-skipped', {
+          orderId,
+          orderNumber: attrs.orderNumber,
+          strapiHost,
         })
       }
-    } catch (err: any) {
-      if (err?.statusCode) throw err
-      console.error('Shippo rate verification failed:', err?.message || err)
-      throw createError({ statusCode: 502, message: 'Could not verify shipping rate. Please try again.' })
     }
   }
 
@@ -311,8 +317,22 @@ export default defineEventHandler(async (event: H3Event) => {
       idempotencyKey
     )
   } catch (err: any) {
+    const safeDetail = err?.safeDetail || ''
     console.error('Moov create transfer failed:', err?.message || err)
-    throw createError({ statusCode: 502, message: 'Could not submit payment. Please try again.' })
+    checkoutTrace('create-transfer:moov-failed', {
+      orderId,
+      orderNumber: attrs.orderNumber,
+      strapiHost,
+      paymentStatus: attrs.paymentStatus,
+      moovStatus: err?.status || null,
+      hasSafeDetail: Boolean(safeDetail),
+    })
+    throw createError({
+      statusCode: 502,
+      message: safeDetail
+        ? `Payment provider rejected the transfer: ${safeDetail}`
+        : 'Could not submit payment. Please try again.',
+    })
   }
 
   const transferId = transfer?.transferID || transfer?.transferId

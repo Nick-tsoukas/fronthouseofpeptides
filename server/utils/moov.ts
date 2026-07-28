@@ -143,7 +143,9 @@ export async function getAccountPaymentMethods(
   }
 
   const data = await res.json()
-  return data || []
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.paymentMethods)) return data.paymentMethods
+  return []
 }
 
 export async function getAccountCards(
@@ -161,7 +163,9 @@ export async function getAccountCards(
   }
 
   const data = await res.json()
-  return data || []
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.cards)) return data.cards
+  return []
 }
 
 export async function getPaymentMethod(
@@ -176,12 +180,6 @@ export async function getPaymentMethod(
         pm.paymentMethodID === paymentMethodId ||
         pm.paymentMethodId === paymentMethodId
     ) || null
-  )
-}
-
-export function findMoovWalletPaymentMethod(methods: any[]): any | null {
-  return (
-    methods.find((pm) => pm.paymentMethodType === 'moov-wallet') || null
   )
 }
 
@@ -244,10 +242,59 @@ export async function createMoovTransfer(
 
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Moov create transfer failed ${res.status}: ${text}`)
+    let detail = ''
+    try {
+      const parsed = JSON.parse(text)
+      detail =
+        parsed?.detail ||
+        parsed?.message ||
+        parsed?.title ||
+        parsed?.error ||
+        ''
+      if (Array.isArray(parsed?.issues) && parsed.issues.length) {
+        const issueText = parsed.issues
+          .map((i: any) => i?.detail || i?.message || i?.title)
+          .filter(Boolean)
+          .slice(0, 3)
+          .join('; ')
+        if (issueText) detail = detail ? `${detail}: ${issueText}` : issueText
+      }
+    } catch {
+      // keep raw text truncated below
+    }
+
+    const safeDetail = String(detail || text || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 280)
+
+    const err: any = new Error(
+      safeDetail
+        ? `Moov create transfer failed ${res.status}: ${safeDetail}`
+        : `Moov create transfer failed ${res.status}`
+    )
+    err.status = res.status
+    err.safeDetail = safeDetail
+    throw err
   }
 
   return await res.json()
+}
+
+export function findMoovWalletPaymentMethod(methods: any[]): any | null {
+  const wallets = (methods || []).filter((pm) => pm.paymentMethodType === 'moov-wallet')
+  if (!wallets.length) return null
+
+  // Prefer an explicitly usable/general wallet when Moov returns multiple.
+  const preferred =
+    wallets.find((pm) => {
+      const status = String(pm.status || '').toLowerCase()
+      const walletType = String(pm.wallet?.walletType || pm.walletType || '').toLowerCase()
+      if (status && ['disabled', 'failed', 'closed', 'errored'].includes(status)) return false
+      return !walletType || walletType === 'general' || walletType === 'default'
+    }) || wallets[0]
+
+  return preferred || null
 }
 
 export function mapMoovTransferToPaymentStatus(

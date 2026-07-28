@@ -110,16 +110,22 @@
             <p class="text-emerald-100/80 text-sm mt-1">Redirecting to your order confirmation…</p>
           </div>
 
-          <!-- After Moov callbacks only — never unmount the Drop during card submit -->
-          <div
-            v-else-if="paymentStage === 'preparing' || paymentStage === 'processing_payment'"
-            class="rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-5 text-center"
-          >
-            <div class="mx-auto mb-3 h-8 w-8 rounded-full border-2 border-primary-500/30 border-t-primary-400 animate-spin" />
-            <p class="text-primary-300 text-sm font-semibold">{{ busyMessage }}</p>
-          </div>
+          <div v-else class="relative">
+            <div
+              v-if="paymentStage === 'preparing' || paymentStage === 'processing_payment'"
+              class="rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-5 text-center mb-4"
+            >
+              <div class="mx-auto mb-3 h-8 w-8 rounded-full border-2 border-primary-500/30 border-t-primary-400 animate-spin" />
+              <p class="text-primary-300 text-sm font-semibold">{{ busyMessage }}</p>
+            </div>
 
-          <template v-else>
+            <!-- Keep Moov Drop mounted across retries — remounting loses accountID -->
+            <div
+              :class="{
+                'opacity-0 pointer-events-none absolute inset-0 overflow-hidden h-0':
+                  paymentStage === 'preparing' || paymentStage === 'processing_payment',
+              }"
+            >
             <!-- Contact / billing -->
             <div class="mb-6 space-y-4" :class="{ 'opacity-60 pointer-events-none': paymentStage === 'card_submitting' }">
               <h3 class="text-sm font-semibold text-white tracking-wide">Billing & contact</h3>
@@ -203,7 +209,6 @@
               </div>
             </div>
 
-            <!-- Card fields — must stay mounted until Moov onSuccess/onError -->
             <div class="mb-2" :class="{ 'opacity-60 pointer-events-none': paymentStage === 'card_submitting' }">
               <h3 class="text-sm font-semibold text-white tracking-wide mb-3">Card details</h3>
               <ClientOnly>
@@ -231,6 +236,13 @@
               <p class="text-red-400 text-sm leading-relaxed">{{ cardError }}</p>
             </div>
 
+            <p
+              v-if="cardLinkedOnServer && paymentStage === 'ready'"
+              class="mt-4 text-emerald-400/90 text-sm"
+            >
+              Card verified. Click Pay to submit the test payment.
+            </p>
+
             <button
               @click="submitPayment"
               :disabled="!canPay"
@@ -245,7 +257,8 @@
               </svg>
               {{ payButtonLabel }}
             </button>
-          </template>
+            </div>
+          </div>
 
           <p class="mt-5 text-center text-dark-500 text-[11px] tracking-wide">
             Powered by Moov secure payment infrastructure.
@@ -455,11 +468,26 @@ const merchantAccountId = ref('')
 const cardReady = ref(false)
 const showCardForm = ref(false)
 const cardLinkRef = ref<any>(null)
+const cardLinkedOnServer = ref(false)
 
 const payButtonLabel = computed(() => {
   if (paymentStage.value === 'card_submitting') return 'Processing secure payment…'
-  if (!cardReady.value) return 'Loading secure payment form…'
+  if (!cardReady.value && !cardLinkedOnServer.value) return 'Loading secure payment form…'
+  if (cardLinkedOnServer.value) return `Pay ${formatCents(totalCents.value)}`
   return `Pay ${formatCents(totalCents.value)}`
+})
+
+const canPay = computed(() => {
+  const sessionOk =
+    !isBusy.value &&
+    !needsHttps.value &&
+    !invalidTotal.value &&
+    paymentStage.value === 'ready' &&
+    Boolean(cardholderName.value.trim()) &&
+    Boolean(effectiveBillingAddress().postalCode)
+
+  if (cardLinkedOnServer.value) return sessionOk
+  return sessionOk && cardReady.value && showCardForm.value
 })
 
 let pollTimer: ReturnType<typeof setTimeout> | null = null
@@ -467,19 +495,6 @@ let pollAttempts = 0
 let submitWatchdog: ReturnType<typeof setTimeout> | null = null
 const MAX_POLL_ATTEMPTS = 40
 const CARD_SUBMIT_TIMEOUT_MS = 45000
-
-const canPay = computed(() => {
-  return (
-    cardReady.value &&
-    !isBusy.value &&
-    !needsHttps.value &&
-    !invalidTotal.value &&
-    showCardForm.value &&
-    paymentStage.value === 'ready' &&
-    Boolean(cardholderName.value.trim()) &&
-    Boolean(effectiveBillingAddress().postalCode)
-  )
-})
 
 function effectiveBillingAddress() {
   if (billingSameAsShipping.value) {
@@ -722,6 +737,9 @@ async function loadSession() {
     accessToken.value = session.accessToken || ''
     customerAccountId.value = session.customerAccountId || ''
     merchantAccountId.value = session.merchantAccountId || ''
+    cardLinkedOnServer.value = Boolean(
+      (session as any).hasMoovCardId && (session as any).hasMoovPaymentMethodId
+    )
     showCardForm.value = true
 
     await nextTick()
@@ -753,13 +771,37 @@ async function submitPayment() {
     return
   }
 
+  if (!customerAccountId.value || !accessToken.value) {
+    cardError.value = 'Payment session expired. Refresh the page and try again.'
+    return
+  }
+
+  // Card already saved from a prior attempt — charge only.
+  if (cardLinkedOnServer.value) {
+    paymentStage.value = 'processing_payment'
+    try {
+      await runCreateTransfer()
+    } catch (err: any) {
+      console.error('Create transfer retry error:', err)
+      cardError.value =
+        err.data?.message || err.message || 'Payment could not be completed. Please try again.'
+      paymentStage.value = 'ready'
+    }
+    return
+  }
+
   try {
     const drop = getCardLinkElement()
     if (!drop || typeof drop.submit !== 'function') {
       throw new Error('Payment form is not ready.')
     }
 
-    // Do not recreate the Drop iframe. Only refresh callbacks + billing, then submit.
+    // Re-bind required Drop props every submit. A remounted Drop has accountID=undefined.
+    drop.oauthToken = accessToken.value
+    drop.accountID = customerAccountId.value
+    drop.merchantAccountID = merchantAccountId.value
+    drop.cardOnFile = true
+    drop.inputStyle = { ...MOOV_INPUT_STYLE }
     applyBillingToDrop(drop)
     drop.onSuccess = handleCardSuccess
     drop.onError = handleCardError
@@ -773,6 +815,23 @@ async function submitPayment() {
     cardError.value = err.message || 'Could not submit payment.'
     paymentStage.value = 'ready'
   }
+}
+
+async function runCreateTransfer() {
+  const transfer = await $fetch<{
+    ok?: boolean
+    orderNumber?: string
+    paymentStatus?: string
+    transferCreated?: boolean
+  }>('/api/moov/create-transfer', {
+    method: 'POST',
+    body: { orderId },
+    credentials: 'include',
+  })
+
+  paymentStatus.value = transfer.paymentStatus || 'processing'
+  cardLinkedOnServer.value = true
+  startPaymentStatusPolling()
 }
 
 async function handleCardSuccess(payload: any) {
@@ -796,21 +855,10 @@ async function handleCardSuccess(payload: any) {
     }
 
     paymentStatus.value = (linked as any).paymentStatus || 'pending'
+    cardLinkedOnServer.value = true
     paymentStage.value = 'processing_payment'
 
-    const transfer = await $fetch<{
-      ok?: boolean
-      orderNumber?: string
-      paymentStatus?: string
-      transferCreated?: boolean
-    }>('/api/moov/create-transfer', {
-      method: 'POST',
-      body: { orderId },
-      credentials: 'include',
-    })
-
-    paymentStatus.value = transfer.paymentStatus || 'processing'
-    startPaymentStatusPolling()
+    await runCreateTransfer()
   } catch (err: any) {
     console.error('Payment confirmation error:', err)
     cardError.value =

@@ -43,6 +43,8 @@ export default defineEventHandler(async (event: H3Event) => {
       'email',
       'phone',
       'moovCustomerAccountId',
+      'moovCardId',
+      'moovPaymentMethodId',
       'shippingStatus',
       'paymentStatus',
       'subtotalCents',
@@ -106,6 +108,8 @@ export default defineEventHandler(async (event: H3Event) => {
     shippingCarrier: attrs.shippingCarrier || '',
     shippingService: attrs.shippingService || '',
     shippingDeliveryDays: attrs.shippingDeliveryDays ?? null,
+    hasMoovCardId: Boolean(attrs.moovCardId),
+    hasMoovPaymentMethodId: Boolean(attrs.moovPaymentMethodId),
     ...contact,
   }
 
