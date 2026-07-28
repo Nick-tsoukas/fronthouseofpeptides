@@ -9,6 +9,7 @@ import {
   safeLog,
 } from '~/server/utils/moov'
 import { sendPaidOrderEmails } from '~/server/utils/sendOrderEmails'
+import { checkoutTrace, strapiHostname } from '~/server/utils/checkout-trace'
 
 function asWebhookIdList(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -86,6 +87,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const webhookSecret = config.moovWebhookSecret as string
   const strapiUrl = config.public.strapiUrl as string
   const strapiToken = config.strapiToken as string
+  const strapiHost = strapiHostname(strapiUrl)
 
   const authHeaders: Record<string, string> = strapiToken
     ? { Authorization: `Bearer ${strapiToken}`, 'Content-Type': 'application/json' }
@@ -161,6 +163,7 @@ export default defineEventHandler(async (event: H3Event) => {
   safeLog('Moov webhook received', {
     eventId,
     eventType,
+    strapiHost,
     ...(transferIdFromPayload && { transferId: transferIdFromPayload }),
     ...(statusFromPayload && { status: statusFromPayload }),
   })
@@ -378,7 +381,16 @@ export default defineEventHandler(async (event: H3Event) => {
     transferId,
     status: verifiedStatus,
     orderNumber: attrs.orderNumber,
+    strapiHost,
     paymentStatus: updateData.paymentStatus || attrs.paymentStatus,
+  })
+
+  checkoutTrace('webhook:order-updated', {
+    orderId,
+    orderNumber: attrs.orderNumber,
+    strapiHost,
+    paymentStatus: updateData.paymentStatus || attrs.paymentStatus,
+    hasMoovTransferId: true,
   })
 
   if (shouldSendEmails) {

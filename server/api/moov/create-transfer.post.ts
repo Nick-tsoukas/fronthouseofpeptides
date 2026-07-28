@@ -17,6 +17,7 @@ import {
   type ShippoShipment,
   type ShippoRate,
 } from '~/server/utils/shippo'
+import { checkoutTrace, strapiHostname } from '~/server/utils/checkout-trace'
 
 interface RequestBody {
   orderId?: number
@@ -31,6 +32,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const config = useRuntimeConfig(event)
   const strapiUrl = config.public.strapiUrl as string
   const strapiToken = config.strapiToken as string
+  const strapiHost = strapiHostname(strapiUrl)
 
   const authHeaders: Record<string, string> = strapiToken
     ? { Authorization: `Bearer ${strapiToken}`, 'Content-Type': 'application/json' }
@@ -69,6 +71,17 @@ export default defineEventHandler(async (event: H3Event) => {
     ],
   })
 
+  checkoutTrace('create-transfer:start', {
+    orderId,
+    orderNumber: attrs.orderNumber,
+    strapiHost,
+    paymentStatus: attrs.paymentStatus,
+    shippingStatus: attrs.shippingStatus,
+    hasMoovCardId: Boolean(attrs.moovCardId),
+    hasMoovPaymentMethodId: Boolean(attrs.moovPaymentMethodId),
+    hasMoovTransferId: Boolean(attrs.moovTransferId),
+  })
+
   if (!attrs || attrs.status === 'cancelled') {
     throw createError({ statusCode: 400, message: 'Order is not available for payment.' })
   }
@@ -81,7 +94,8 @@ export default defineEventHandler(async (event: H3Event) => {
     throw createError({ statusCode: 400, message: 'Order is not available for payment.' })
   }
 
-  if (!['pending', 'processing'].includes(attrs.paymentStatus)) {
+  // pending = first charge; processing = idempotent resume; failed = retryable
+  if (!['pending', 'processing', 'failed'].includes(attrs.paymentStatus)) {
     throw createError({ statusCode: 400, message: 'Order is not available for payment.' })
   }
 
@@ -114,8 +128,8 @@ export default defineEventHandler(async (event: H3Event) => {
     throw createError({ statusCode: 400, message: 'Order total is missing or invalid.' })
   }
 
-  // Idempotent path: existing transfer — retrieve instead of creating another
-  if (attrs.moovTransferId) {
+  // Idempotent path: existing non-failed transfer — retrieve instead of creating another
+  if (attrs.moovTransferId && attrs.paymentStatus !== 'failed') {
     try {
       await getMoovTransfer(moovConfig, attrs.moovTransferId)
     } catch (err: any) {
@@ -126,6 +140,7 @@ export default defineEventHandler(async (event: H3Event) => {
     safeLog('Moov transfer already exists (idempotent)', {
       orderId,
       orderNumber: attrs.orderNumber,
+      strapiHost,
       transferId: attrs.moovTransferId,
       paymentStatus: attrs.paymentStatus,
     })
@@ -273,8 +288,11 @@ export default defineEventHandler(async (event: H3Event) => {
     throw createError({ statusCode: 500, message: 'Merchant wallet payment method is not available.' })
   }
 
+  const baseIdempotency = attrs.idempotencyKey || `transfer-${attrs.orderNumber || orderId}`
   const idempotencyKey =
-    attrs.idempotencyKey || `transfer-${attrs.orderNumber || orderId}`
+    attrs.paymentStatus === 'failed'
+      ? `${baseIdempotency}-retry-${Date.now()}`
+      : baseIdempotency
 
   let transfer: any
   try {
@@ -294,7 +312,7 @@ export default defineEventHandler(async (event: H3Event) => {
     )
   } catch (err: any) {
     console.error('Moov create transfer failed:', err?.message || err)
-    throw createError({ statusCode: 502, message: 'Could not submit test payment. Please try again.' })
+    throw createError({ statusCode: 502, message: 'Could not submit payment. Please try again.' })
   }
 
   const transferId = transfer?.transferID || transfer?.transferId
@@ -303,28 +321,53 @@ export default defineEventHandler(async (event: H3Event) => {
   }
 
   const now = new Date().toISOString()
+  const orderUpdate = {
+    moovTransferId: transferId,
+    paymentStatus: 'processing',
+    paymentProvider: 'moov',
+    paymentMethod: 'card',
+    paymentInitiatedAt: now,
+  }
+
   try {
     await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
       method: 'PUT',
       headers: authHeaders,
-      body: {
-        data: {
-          moovTransferId: transferId,
-          paymentStatus: 'processing',
-          paymentProvider: 'moov',
-          paymentMethod: 'card',
-          paymentInitiatedAt: now,
-        },
-      },
+      body: { data: orderUpdate },
     })
   } catch (err: any) {
-    console.error('Failed to save Moov transfer on order:', err?.message || err)
-    throw createError({ statusCode: 502, message: 'Payment started but order could not be updated. Contact support with your order number.' })
+    // paymentInitiatedAt may be missing until Strapi schema is redeployed
+    console.error('Failed to save Moov transfer (with paymentInitiatedAt):', err?.message || err)
+    try {
+      const { paymentInitiatedAt: _ignored, ...fallback } = orderUpdate
+      await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: { data: fallback },
+      })
+    } catch (err2: any) {
+      console.error('Failed to save Moov transfer on order:', err2?.message || err2)
+      throw createError({
+        statusCode: 502,
+        message: 'Payment started but order could not be updated. Contact support with your order number.',
+      })
+    }
   }
+
+  checkoutTrace('create-transfer:created', {
+    orderId,
+    orderNumber: attrs.orderNumber,
+    strapiHost,
+    paymentStatus: 'processing',
+    hasMoovCardId: true,
+    hasMoovPaymentMethodId: true,
+    hasMoovTransferId: true,
+  })
 
   safeLog('Moov transfer created', {
     orderId,
     orderNumber: attrs.orderNumber,
+    strapiHost,
     transferId,
     paymentStatus: 'processing',
   })

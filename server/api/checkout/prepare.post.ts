@@ -1,6 +1,7 @@
 import { type H3Event } from 'h3'
 import { generateCheckoutSessionToken, hashToken } from '~/server/utils/moov'
 import { setCheckoutSessionCookie } from '~/server/utils/checkout-session'
+import { checkoutTrace, strapiHostname } from '~/server/utils/checkout-trace'
 
 const CURRENCY_CODE = 'USD'
 const SHIPPING_CENTS = 0
@@ -52,6 +53,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const config = useRuntimeConfig(event)
   const strapiUrl = config.public.strapiUrl as string
   const strapiToken = config.strapiToken as string
+  const strapiHost = strapiHostname(strapiUrl)
 
   const authHeaders: Record<string, string> = strapiToken
     ? { Authorization: `Bearer ${strapiToken}` }
@@ -318,6 +320,17 @@ export default defineEventHandler(async (event: H3Event) => {
     }
     throw createError({ statusCode: 502, message: 'Failed to create order. Please try again.' })
   }
+
+  checkoutTrace('prepare:order-created', {
+    orderId,
+    orderNumber: createdOrderNumber,
+    strapiHost,
+    paymentStatus: 'pending',
+    shippingStatus: 'not_quoted',
+    hasMoovCardId: false,
+    hasMoovPaymentMethodId: false,
+    hasMoovTransferId: false,
+  })
 
   // ── Set secure checkout session cookie ──────────────────────────────────
   setCheckoutSessionCookie(event, checkoutSessionToken)

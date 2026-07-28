@@ -1,6 +1,7 @@
 import { type H3Event } from 'h3'
 import { getMoovConfig, getAccountPaymentMethods, getAccountCards, safeLog } from '~/server/utils/moov'
 import { validateCheckoutSession } from '~/server/utils/checkout-session'
+import { checkoutTrace, strapiHostname } from '~/server/utils/checkout-trace'
 
 interface RequestBody {
   orderId?: number
@@ -19,22 +20,14 @@ async function findCardPaymentMethod(
 ) {
   const maxAttempts = 5
   const delayMs = 400
-  let lastMethods: any[] = []
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    lastMethods = await getAccountPaymentMethods(moovConfig, customerAccountId)
-
-    const match = lastMethods.find(
+    const methods = await getAccountPaymentMethods(moovConfig, customerAccountId)
+    const match = methods.find(
       (pm) => pm.paymentMethodType === 'card-payment' && pm.card?.cardID === cardId
     )
-
-    if (match) {
-      return match
-    }
-
-    if (attempt < maxAttempts) {
-      await sleep(delayMs)
-    }
+    if (match) return match
+    if (attempt < maxAttempts) await sleep(delayMs)
   }
 
   return null
@@ -44,6 +37,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const config = useRuntimeConfig(event)
   const strapiUrl = config.public.strapiUrl as string
   const strapiToken = config.strapiToken as string
+  const strapiHost = strapiHostname(strapiUrl)
 
   const authHeaders: Record<string, string> = strapiToken
     ? { Authorization: `Bearer ${strapiToken}`, 'Content-Type': 'application/json' }
@@ -66,7 +60,18 @@ export default defineEventHandler(async (event: H3Event) => {
   const { attributes: attrs } = await validateCheckoutSession(event, {
     orderId,
     token: checkoutSessionToken || undefined,
+    allowedPaymentStatuses: ['pending', 'failed'],
     requiredFields: ['orderNumber', 'moovCustomerAccountId', 'paymentStatus', 'inventoryCommitted'],
+  })
+
+  checkoutTrace('card-linked:start', {
+    orderId,
+    orderNumber: attrs.orderNumber,
+    strapiHost,
+    paymentStatus: attrs.paymentStatus,
+    hasMoovCardId: Boolean(attrs.moovCardId),
+    hasMoovPaymentMethodId: Boolean(attrs.moovPaymentMethodId),
+    hasMoovTransferId: Boolean(attrs.moovTransferId),
   })
 
   const customerAccountId = attrs.moovCustomerAccountId
@@ -74,7 +79,6 @@ export default defineEventHandler(async (event: H3Event) => {
     throw createError({ statusCode: 400, message: 'Payment account not found for this order.' })
   }
 
-  // Verify the card belongs to the customer account
   let cards: any[] = []
   try {
     cards = await getAccountCards(moovConfig, customerAccountId)
@@ -88,7 +92,6 @@ export default defineEventHandler(async (event: H3Event) => {
     throw createError({ statusCode: 400, message: 'Card does not belong to this payment account.' })
   }
 
-  // Payment methods can lag briefly after card creation — retry before failing.
   let cardPaymentMethod: any = null
   try {
     cardPaymentMethod = await findCardPaymentMethod(moovConfig, customerAccountId, cardId)
@@ -105,9 +108,8 @@ export default defineEventHandler(async (event: H3Event) => {
   }
 
   const moovPaymentMethodId = cardPaymentMethod.paymentMethodID
-
-  // Save card and payment method IDs on the order — keep payment pending.
   const now = new Date().toISOString()
+
   try {
     await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
       method: 'PUT',
@@ -124,14 +126,23 @@ export default defineEventHandler(async (event: H3Event) => {
     })
   } catch (err: any) {
     console.error('Failed to save Moov card details:', err?.message || err)
-    throw createError({ statusCode: 502, message: 'Could not save card details. Please try again.' })
+    throw createError({ statusCode: 502, message: 'Could not save card details to the order. Please try again.' })
   }
+
+  checkoutTrace('card-linked:saved', {
+    orderId,
+    orderNumber: attrs.orderNumber,
+    strapiHost,
+    paymentStatus: 'pending',
+    hasMoovCardId: true,
+    hasMoovPaymentMethodId: true,
+    hasMoovTransferId: Boolean(attrs.moovTransferId),
+  })
 
   safeLog('Moov card verified (pending payment)', {
     orderId,
-    customerAccountId,
-    cardId,
-    paymentMethodId: moovPaymentMethodId,
+    orderNumber: attrs.orderNumber,
+    strapiHost,
     paymentStatus: 'pending',
   })
 
@@ -142,7 +153,6 @@ export default defineEventHandler(async (event: H3Event) => {
     paymentReady: true,
     paymentStatus: 'pending',
     inventoryCommitted: false,
-    // Internal compatibility for older clients
     cardLinked: true,
   }
 })

@@ -83,7 +83,7 @@
         class="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 items-start"
       >
         <section class="rounded-2xl border border-slate-600/50 bg-gradient-to-b from-dark-900 to-dark-950 p-6 sm:p-8 shadow-xl shadow-black/25">
-          <div class="mb-5">
+          <div class="mb-6">
             <h2 class="text-xl font-semibold text-white">Card Payment</h2>
             <p class="mt-2 flex items-start gap-2 text-dark-400 text-sm leading-relaxed">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -111,70 +111,117 @@
           </div>
 
           <div
-            v-else-if="paymentStage === 'transferring' || paymentStage === 'processing_payment'"
+            v-else-if="isBusy"
             class="rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-5 text-center"
           >
             <div class="mx-auto mb-3 h-8 w-8 rounded-full border-2 border-primary-500/30 border-t-primary-400 animate-spin" />
-            <p class="text-primary-300 text-sm font-semibold">Processing test payment…</p>
-            <p class="text-dark-400 text-xs mt-2">Confirming transfer status with the payment provider.</p>
-          </div>
-
-          <div
-            v-else-if="paymentStage === 'verified'"
-            class="space-y-4"
-          >
-            <div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4">
-              <p class="text-emerald-400 text-sm font-semibold">Card verified</p>
-              <p class="text-emerald-100/80 text-sm mt-1 leading-relaxed">
-                Card verified. Ready to submit test payment.
-              </p>
-            </div>
-
-            <div
-              v-if="transferError"
-              class="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3"
-            >
-              <p class="text-red-400 text-sm leading-relaxed">{{ transferError }}</p>
-            </div>
-
-            <button
-              @click="submitTransfer"
-              :disabled="isTransferring"
-              class="w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-base font-semibold transition-all duration-200
-                bg-primary-500 hover:bg-primary-600 text-white
-                disabled:bg-dark-800 disabled:text-dark-500 disabled:border disabled:border-dark-700 disabled:cursor-not-allowed
-                shadow-lg shadow-primary-500/10 disabled:shadow-none"
-            >
-              <svg v-if="isTransferring" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              {{ isTransferring ? 'Processing test payment…' : 'Submit Test Payment' }}
-            </button>
+            <p class="text-primary-300 text-sm font-semibold">{{ busyMessage }}</p>
           </div>
 
           <template v-else>
-            <p class="mb-3 text-dark-400 text-sm">Enter your card details to continue.</p>
+            <!-- Contact / billing -->
+            <div class="mb-6 space-y-4">
+              <h3 class="text-sm font-semibold text-white tracking-wide">Billing & contact</h3>
 
-            <ClientOnly>
-              <div class="payment-card-drop-shell">
-                <moov-card-link
-                  v-if="showCardForm"
-                  ref="cardLinkRef"
-                ></moov-card-link>
-                <div
-                  v-else
-                  class="py-8 text-center text-dark-400 text-sm"
-                >
-                  Loading secure payment form…
-                </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label class="block">
+                  <span class="text-xs text-dark-400 mb-1.5 block">First name</span>
+                  <input v-model="firstName" type="text" class="pay-input" autocomplete="given-name" />
+                </label>
+                <label class="block">
+                  <span class="text-xs text-dark-400 mb-1.5 block">Last name</span>
+                  <input v-model="lastName" type="text" class="pay-input" autocomplete="family-name" />
+                </label>
               </div>
-              <template #fallback>
-                <div class="payment-card-drop-shell py-8 text-center text-dark-400 text-sm">
-                  Loading secure payment form…
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label class="block">
+                  <span class="text-xs text-dark-400 mb-1.5 block">Email</span>
+                  <input v-model="email" type="email" class="pay-input" autocomplete="email" />
+                </label>
+                <label class="block">
+                  <span class="text-xs text-dark-400 mb-1.5 block">Phone</span>
+                  <input v-model="phone" type="tel" class="pay-input" autocomplete="tel" />
+                </label>
+              </div>
+
+              <label class="block">
+                <span class="text-xs text-dark-400 mb-1.5 block">Cardholder name</span>
+                <input v-model="cardholderName" type="text" class="pay-input" autocomplete="cc-name" />
+              </label>
+
+              <label class="flex items-start gap-3 cursor-pointer select-none pt-1">
+                <input
+                  v-model="billingSameAsShipping"
+                  type="checkbox"
+                  class="mt-1 h-4 w-4 rounded border-dark-500 bg-dark-800 text-primary-500 focus:ring-primary-500"
+                />
+                <span class="text-sm text-dark-200 leading-snug">Billing address same as shipping</span>
+              </label>
+
+              <div v-if="billingSameAsShipping" class="rounded-xl border border-dark-700/80 bg-dark-950/60 px-4 py-3 text-sm text-dark-300 leading-relaxed">
+                <p class="text-dark-500 text-xs uppercase tracking-wider mb-1.5">Shipping address</p>
+                <p class="text-white">{{ firstName }} {{ lastName }}</p>
+                <p>{{ shippingAddress1 }}</p>
+                <p v-if="shippingAddress2">{{ shippingAddress2 }}</p>
+                <p>{{ shippingCity }}, {{ shippingState }} {{ shippingPostalCode }}</p>
+                <p>{{ shippingCountry }}</p>
+              </div>
+
+              <div v-else class="space-y-3">
+                <label class="block">
+                  <span class="text-xs text-dark-400 mb-1.5 block">Billing name</span>
+                  <input v-model="billingName" type="text" class="pay-input" autocomplete="name" />
+                </label>
+                <label class="block">
+                  <span class="text-xs text-dark-400 mb-1.5 block">Address line 1</span>
+                  <input v-model="billingAddress1" type="text" class="pay-input" autocomplete="billing address-line1" />
+                </label>
+                <label class="block">
+                  <span class="text-xs text-dark-400 mb-1.5 block">Address line 2</span>
+                  <input v-model="billingAddress2" type="text" class="pay-input" autocomplete="billing address-line2" />
+                </label>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <label class="block col-span-2">
+                    <span class="text-xs text-dark-400 mb-1.5 block">City</span>
+                    <input v-model="billingCity" type="text" class="pay-input" autocomplete="billing address-level2" />
+                  </label>
+                  <label class="block">
+                    <span class="text-xs text-dark-400 mb-1.5 block">State</span>
+                    <input v-model="billingState" type="text" class="pay-input" autocomplete="billing address-level1" />
+                  </label>
+                  <label class="block">
+                    <span class="text-xs text-dark-400 mb-1.5 block">ZIP</span>
+                    <input v-model="billingPostalCode" type="text" class="pay-input" autocomplete="billing postal-code" />
+                  </label>
                 </div>
-              </template>
-            </ClientOnly>
+                <label class="block">
+                  <span class="text-xs text-dark-400 mb-1.5 block">Country</span>
+                  <input v-model="billingCountry" type="text" class="pay-input" autocomplete="billing country" />
+                </label>
+              </div>
+            </div>
+
+            <!-- Card fields -->
+            <div class="mb-2">
+              <h3 class="text-sm font-semibold text-white tracking-wide mb-3">Card details</h3>
+              <ClientOnly>
+                <div class="payment-card-drop-shell">
+                  <moov-card-link
+                    v-if="showCardForm"
+                    ref="cardLinkRef"
+                  ></moov-card-link>
+                  <div v-else class="py-8 text-center text-dark-400 text-sm">
+                    Loading secure payment form…
+                  </div>
+                </div>
+                <template #fallback>
+                  <div class="payment-card-drop-shell py-8 text-center text-dark-400 text-sm">
+                    Loading secure payment form…
+                  </div>
+                </template>
+              </ClientOnly>
+            </div>
 
             <div
               v-if="cardError"
@@ -191,10 +238,6 @@
                 disabled:bg-dark-800 disabled:text-dark-500 disabled:border disabled:border-dark-700 disabled:cursor-not-allowed
                 shadow-lg shadow-primary-500/10 disabled:shadow-none"
             >
-              <svg v-if="isProcessing" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
               {{ payButtonLabel }}
             </button>
           </template>
@@ -231,14 +274,8 @@
               </div>
               <div class="flex justify-between gap-4">
                 <span class="text-dark-400">Payment status</span>
-                <span
-                  class="inline-flex items-center gap-1.5"
-                  :class="paymentStatusClass"
-                >
-                  <span
-                    class="w-1.5 h-1.5 rounded-full"
-                    :class="paymentStatusDotClass"
-                  ></span>
+                <span class="inline-flex items-center gap-1.5" :class="paymentStatusClass">
+                  <span class="w-1.5 h-1.5 rounded-full" :class="paymentStatusDotClass"></span>
                   {{ displayPaymentStatus }}
                 </span>
               </div>
@@ -274,7 +311,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { CURRENCY } from '~/constants'
 
 interface CardSessionResponse {
@@ -286,7 +323,16 @@ interface CardSessionResponse {
   mode?: string
   expiresIn?: number
   customerName?: string
+  firstName?: string
+  lastName?: string
   email?: string
+  phone?: string
+  shippingAddress1?: string
+  shippingAddress2?: string
+  shippingCity?: string
+  shippingState?: string
+  shippingPostalCode?: string
+  shippingCountry?: string
   orderNumber?: string
   subtotalCents?: number
   shippingCostCents?: number
@@ -302,9 +348,8 @@ interface CardSessionResponse {
 
 type PaymentStage =
   | 'ready'
-  | 'processing'
-  | 'verified'
-  | 'transferring'
+  | 'card_submitting'
+  | 'preparing'
   | 'processing_payment'
   | 'paid'
   | 'failed'
@@ -323,7 +368,6 @@ const config = useRuntimeConfig()
 
 const orderId = Number(route.query.orderId)
 const orderNumber = ref('')
-const customerName = ref('')
 const subtotalCents = ref(0)
 const shippingCostCents = ref(0)
 const taxCents = ref(0)
@@ -336,18 +380,45 @@ const paymentBlocked = ref<string | null>(null)
 const needsHttps = ref(false)
 const paymentStage = ref<PaymentStage>('ready')
 
+const firstName = ref('')
+const lastName = ref('')
+const email = ref('')
+const phone = ref('')
+const cardholderName = ref('')
+const shippingAddress1 = ref('')
+const shippingAddress2 = ref('')
+const shippingCity = ref('')
+const shippingState = ref('')
+const shippingPostalCode = ref('')
+const shippingCountry = ref('US')
+
+const billingSameAsShipping = ref(true)
+const billingName = ref('')
+const billingAddress1 = ref('')
+const billingAddress2 = ref('')
+const billingCity = ref('')
+const billingState = ref('')
+const billingPostalCode = ref('')
+const billingCountry = ref('US')
+
 const isTestMode = computed(() => (config.public.moovMode as string || 'test') === 'test')
 const invalidTotal = computed(() => !totalCents.value || totalCents.value <= 0)
-
 const formatCents = (cents: number) => `${CURRENCY.SYMBOL}${((Number(cents) || 0) / 100).toFixed(2)}`
+
+const isBusy = computed(() =>
+  ['card_submitting', 'preparing', 'processing_payment'].includes(paymentStage.value)
+)
+
+const busyMessage = computed(() => {
+  if (paymentStage.value === 'preparing') return 'Card verified. Preparing payment…'
+  if (paymentStage.value === 'processing_payment') return 'Processing secure payment…'
+  return 'Processing secure payment…'
+})
 
 const displayPaymentStatus = computed(() => {
   if (paymentStage.value === 'paid' || paymentStatus.value === 'paid') return 'Paid'
-  if (paymentStage.value === 'transferring' || paymentStage.value === 'processing_payment' || paymentStatus.value === 'processing') {
-    return 'Processing'
-  }
+  if (isBusy.value || paymentStatus.value === 'processing') return 'Processing'
   if (paymentStatus.value === 'failed' || paymentStage.value === 'failed') return 'Failed'
-  if (paymentStage.value === 'verified') return 'Pending'
   const status = paymentStatus.value || 'pending'
   return status.charAt(0).toUpperCase() + status.slice(1)
 })
@@ -370,11 +441,8 @@ const displayShippingStatus = computed(() => {
 })
 
 const isLoading = ref(true)
-const isProcessing = ref(false)
-const isTransferring = ref(false)
 const error = ref<string | null>(null)
 const cardError = ref<string | null>(null)
-const transferError = ref<string | null>(null)
 
 const accessToken = ref('')
 const customerAccountId = ref('')
@@ -391,19 +459,41 @@ const MAX_POLL_ATTEMPTS = 40
 const canPay = computed(() => {
   return (
     cardReady.value &&
-    !isProcessing.value &&
+    !isBusy.value &&
     !needsHttps.value &&
     !invalidTotal.value &&
     showCardForm.value &&
-    paymentStage.value === 'ready'
+    paymentStage.value === 'ready' &&
+    Boolean(cardholderName.value.trim()) &&
+    Boolean(effectiveBillingAddress().postalCode)
   )
 })
 
 const payButtonLabel = computed(() => {
-  if (isProcessing.value) return 'Verifying card…'
   if (!cardReady.value) return 'Loading secure payment form…'
-  return 'Verify Card'
+  return `Pay ${formatCents(totalCents.value)}`
 })
+
+function effectiveBillingAddress() {
+  if (billingSameAsShipping.value) {
+    return {
+      addressLine1: shippingAddress1.value,
+      addressLine2: shippingAddress2.value || undefined,
+      city: shippingCity.value,
+      stateOrProvince: shippingState.value,
+      postalCode: shippingPostalCode.value,
+      country: shippingCountry.value || 'US',
+    }
+  }
+  return {
+    addressLine1: billingAddress1.value,
+    addressLine2: billingAddress2.value || undefined,
+    city: billingCity.value,
+    stateOrProvince: billingState.value,
+    postalCode: billingPostalCode.value,
+    country: billingCountry.value || 'US',
+  }
+}
 
 function stopPolling() {
   if (pollTimer) {
@@ -414,19 +504,9 @@ function stopPolling() {
 
 function normalizeMoovSuccessPayload(payload: any): any {
   if (!payload) return null
-
-  if (typeof payload === 'string') {
-    return { cardID: payload }
-  }
-
-  if (typeof CustomEvent !== 'undefined' && payload instanceof CustomEvent) {
-    return payload.detail
-  }
-
-  if (payload?.detail != null && typeof payload.detail === 'object') {
-    return payload.detail
-  }
-
+  if (typeof payload === 'string') return { cardID: payload }
+  if (typeof CustomEvent !== 'undefined' && payload instanceof CustomEvent) return payload.detail
+  if (payload?.detail != null && typeof payload.detail === 'object') return payload.detail
   return payload
 }
 
@@ -442,94 +522,80 @@ function extractMoovCardId(payload: any): string | null {
     normalized?.data?.cardId,
     normalized?.card?.cardID,
     normalized?.card?.cardId,
-    normalized?.detail?.cardID,
-    normalized?.detail?.cardId,
-    normalized?.detail?.result?.cardID,
-    normalized?.detail?.result?.cardId,
-    normalized?.detail?.data?.cardID,
-    normalized?.detail?.data?.cardId,
     payload?.cardID,
     payload?.cardId,
-    payload?.id,
     payload?.detail?.cardID,
     payload?.detail?.cardId,
     payload?.detail?.result?.cardID,
-    payload?.detail?.result?.cardId,
     payload?.detail?.data?.cardID,
-    payload?.detail?.data?.cardId,
-    payload?.card?.cardID,
-    payload?.card?.cardId,
   ]
 
   for (const value of candidates) {
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim()
-    }
+    if (typeof value === 'string' && value.trim()) return value.trim()
   }
-
   return null
-}
-
-function collectIdCardKeyPaths(value: any, path = '', depth = 0, out: string[] = []): string[] {
-  if (!value || typeof value !== 'object' || depth > 4) return out
-
-  for (const key of Object.keys(value)) {
-    const nextPath = path ? `${path}.${key}` : key
-    const lower = key.toLowerCase()
-    if (lower.includes('card') || lower.includes('id')) {
-      out.push(nextPath)
-    }
-    collectIdCardKeyPaths(value[key], nextPath, depth + 1, out)
-  }
-
-  return out
-}
-
-function logSafeMoovPayloadShape(payload: any, label = 'success') {
-  if (!isTestMode.value) return
-
-  try {
-    const normalized = normalizeMoovSuccessPayload(payload)
-    const topKeys = payload && typeof payload === 'object' ? Object.keys(payload) : []
-    const detailKeys =
-      payload?.detail && typeof payload.detail === 'object' ? Object.keys(payload.detail) : []
-    const normalizedKeys =
-      normalized && typeof normalized === 'object' ? Object.keys(normalized) : []
-    const interestingPaths = collectIdCardKeyPaths(normalized || payload).slice(0, 40)
-
-    console.info(`[moov-payment] ${label} payload shape`, {
-      typeofPayload: typeof payload,
-      constructorName: payload?.constructor?.name || null,
-      topKeys,
-      detailKeys,
-      normalizedKeys,
-      interestingPaths,
-      extractedCardIdPresent: Boolean(extractMoovCardId(payload)),
-    })
-  } catch {
-    // ignore logging failures
-  }
 }
 
 function getCardLinkElement(): any {
   if (!import.meta.client) return null
-
   const refVal = cardLinkRef.value as any
-
-  if (refVal && typeof refVal.submit === 'function') {
-    return refVal
-  }
-
-  if (refVal?.$el && typeof refVal.$el.submit === 'function') {
-    return refVal.$el
-  }
-
+  if (refVal && typeof refVal.submit === 'function') return refVal
+  if (refVal?.$el && typeof refVal.$el.submit === 'function') return refVal.$el
   return document.querySelector('moov-card-link') as any
 }
 
+function applyBillingToDrop(drop: any) {
+  const name = cardholderName.value.trim() || `${firstName.value} ${lastName.value}`.trim()
+  if (name) drop.holderName = name
+  drop.billingAddress = effectiveBillingAddress()
+}
+
+function configureCardLinkDrop(retries = 0) {
+  const drop = getCardLinkElement()
+  if (drop && typeof drop.submit === 'function') {
+    drop.oauthToken = accessToken.value
+    drop.accountID = customerAccountId.value
+    drop.merchantAccountID = merchantAccountId.value
+    drop.cardOnFile = true
+    drop.inputStyle = { ...MOOV_INPUT_STYLE }
+    applyBillingToDrop(drop)
+    drop.onSuccess = handleCardSuccess
+    drop.onError = handleCardError
+
+    if (typeof drop.addEventListener === 'function' && !drop.__qbpSuccessBound) {
+      drop.addEventListener('success', (event: any) => handleCardSuccess(event))
+      drop.__qbpSuccessBound = true
+    }
+
+    cardReady.value = true
+    return
+  }
+
+  if (retries < 20) {
+    setTimeout(() => configureCardLinkDrop(retries + 1), 100)
+  } else {
+    cardReady.value = false
+    error.value = 'Secure payment form could not be initialized.'
+  }
+}
+
+watch(
+  [
+    cardholderName,
+    billingSameAsShipping,
+    shippingAddress1,
+    shippingPostalCode,
+    billingAddress1,
+    billingPostalCode,
+  ],
+  () => {
+    const drop = getCardLinkElement()
+    if (drop) applyBillingToDrop(drop)
+  }
+)
+
 function applyOrderSummary(session: CardSessionResponse) {
   orderNumber.value = session.orderNumber || ''
-  customerName.value = session.customerName || ''
   subtotalCents.value = Number(session.subtotalCents) || 0
   shippingCostCents.value = Number(session.shippingCostCents) || 0
   taxCents.value = Number(session.taxCents) || 0
@@ -538,6 +604,29 @@ function applyOrderSummary(session: CardSessionResponse) {
   shippingStatus.value = session.shippingStatus || ''
   shippingCarrier.value = session.shippingCarrier || ''
   shippingService.value = session.shippingService || ''
+
+  firstName.value = session.firstName || ''
+  lastName.value = session.lastName || ''
+  email.value = session.email || ''
+  phone.value = session.phone || ''
+  cardholderName.value =
+    session.customerName ||
+    `${session.firstName || ''} ${session.lastName || ''}`.trim()
+
+  shippingAddress1.value = session.shippingAddress1 || ''
+  shippingAddress2.value = session.shippingAddress2 || ''
+  shippingCity.value = session.shippingCity || ''
+  shippingState.value = session.shippingState || ''
+  shippingPostalCode.value = session.shippingPostalCode || ''
+  shippingCountry.value = session.shippingCountry || 'US'
+
+  billingName.value = cardholderName.value
+  billingAddress1.value = shippingAddress1.value
+  billingAddress2.value = shippingAddress2.value
+  billingCity.value = shippingCity.value
+  billingState.value = shippingState.value
+  billingPostalCode.value = shippingPostalCode.value
+  billingCountry.value = shippingCountry.value
 }
 
 function loadMoovScript(): Promise<void> {
@@ -559,48 +648,16 @@ function loadMoovScript(): Promise<void> {
   })
 }
 
-function configureCardLinkDrop(retries = 0) {
-  const drop = getCardLinkElement()
-  if (drop && typeof drop.submit === 'function') {
-    drop.oauthToken = accessToken.value
-    drop.accountID = customerAccountId.value
-    drop.merchantAccountID = merchantAccountId.value
-    drop.cardOnFile = true
-    drop.inputStyle = { ...MOOV_INPUT_STYLE }
-    if (customerName.value) drop.holderName = customerName.value
-    drop.onSuccess = handleCardSuccess
-    drop.onError = handleCardError
-
-    if (typeof drop.addEventListener === 'function' && !drop.__qbpSuccessBound) {
-      drop.addEventListener('success', (event: any) => handleCardSuccess(event))
-      drop.__qbpSuccessBound = true
-    }
-
-    cardReady.value = true
-    return
-  }
-
-  if (retries < 20) {
-    setTimeout(() => configureCardLinkDrop(retries + 1), 100)
-  } else {
-    cardReady.value = false
-    error.value = 'Secure payment form could not be initialized.'
-  }
-}
-
 async function loadSession() {
   isLoading.value = true
   error.value = null
   cardError.value = null
-  transferError.value = null
   paymentBlocked.value = null
   paymentStage.value = 'ready'
   stopPolling()
 
   try {
-    if (!orderId) {
-      throw new Error('Missing order information.')
-    }
+    if (!orderId) throw new Error('Missing order information.')
 
     const session = await $fetch<CardSessionResponse>('/api/moov/card-session', {
       method: 'POST',
@@ -664,8 +721,18 @@ async function submitPayment() {
     return
   }
 
-  isProcessing.value = true
-  paymentStage.value = 'processing'
+  if (!cardholderName.value.trim()) {
+    cardError.value = 'Enter the cardholder name to continue.'
+    return
+  }
+
+  const billing = effectiveBillingAddress()
+  if (!billing.postalCode) {
+    cardError.value = 'Billing ZIP is required.'
+    return
+  }
+
+  paymentStage.value = 'card_submitting'
 
   try {
     const drop = getCardLinkElement()
@@ -678,105 +745,40 @@ async function submitPayment() {
     drop.merchantAccountID = merchantAccountId.value
     drop.cardOnFile = true
     drop.inputStyle = { ...MOOV_INPUT_STYLE }
-    if (customerName.value) drop.holderName = customerName.value
+    applyBillingToDrop(drop)
     drop.onSuccess = handleCardSuccess
     drop.onError = handleCardError
     drop.submit()
   } catch (err: any) {
     console.error('Payment submit error:', err)
-    cardError.value = err.message || 'Could not verify card.'
-    isProcessing.value = false
+    cardError.value = err.message || 'Could not submit payment.'
     paymentStage.value = 'ready'
   }
 }
 
 async function handleCardSuccess(payload: any) {
   try {
-    logSafeMoovPayloadShape(payload, 'success')
-
     const cardId = extractMoovCardId(payload)
     if (!cardId) {
-      if (isTestMode.value) {
-        console.warn('[moov-payment] cardID extraction failed after normalize')
-      }
       throw new Error('Payment provider did not return a usable card reference. Please try again.')
     }
 
-    const result = await $fetch('/api/moov/card-linked', {
+    paymentStage.value = 'preparing'
+
+    const linked = await $fetch('/api/moov/card-linked', {
       method: 'POST',
       body: { orderId, cardId },
       credentials: 'include',
     })
 
-    paymentStatus.value = (result as any).paymentStatus || 'pending'
-    paymentStage.value = 'verified'
-    isProcessing.value = false
-  } catch (err: any) {
-    console.error('Payment confirmation error:', err)
-    cardError.value = err.data?.message || err.message || 'Card could not be verified. Please try again.'
-    isProcessing.value = false
-    paymentStage.value = 'ready'
-  }
-}
-
-async function handleCardError(clientError: any, apiError?: any) {
-  console.error('Moov payment form error:', clientError, apiError)
-  isProcessing.value = false
-  paymentStage.value = 'ready'
-
-  if (isTestMode.value) {
-    logSafeMoovPayloadShape(clientError, 'client-error')
-    logSafeMoovPayloadShape(apiError, 'api-error')
-  }
-
-  let message = 'Card verification failed. Please check your card details and try again.'
-
-  try {
-    const sources = [apiError, clientError]
-    for (const source of sources) {
-      if (!source) continue
-
-      let data = source
-      if (typeof source.json === 'function') {
-        data = await source.json()
-      } else if (typeof source.clone === 'function') {
-        data = await source.clone().json()
-      }
-
-      if (typeof data === 'string' && data.trim()) {
-        message = data
-        break
-      }
-
-      if (data && typeof data === 'object') {
-        const parts: string[] = []
-        if (typeof data.error === 'string') parts.push(data.error)
-        if (typeof data.message === 'string') parts.push(data.message)
-        if (typeof data.clientError === 'string') parts.push(data.clientError)
-        if (parts.length) {
-          message = parts.join(' ')
-          break
-        }
-        if (source?.status === 422) {
-          message = 'Card was declined or failed verification. Check the test card details and try again.'
-          break
-        }
-      }
+    if (!(linked as any)?.ok) {
+      throw new Error('Card could not be saved on the order. Please try again.')
     }
-  } catch {
-    // keep fallback message
-  }
 
-  cardError.value = message
-}
+    paymentStatus.value = (linked as any).paymentStatus || 'pending'
+    paymentStage.value = 'processing_payment'
 
-async function submitTransfer() {
-  transferError.value = null
-  isTransferring.value = true
-  paymentStage.value = 'transferring'
-
-  try {
-    const result = await $fetch<{
+    const transfer = await $fetch<{
       ok?: boolean
       orderNumber?: string
       paymentStatus?: string
@@ -787,24 +789,53 @@ async function submitTransfer() {
       credentials: 'include',
     })
 
-    paymentStatus.value = result.paymentStatus || 'processing'
-    paymentStage.value = 'processing_payment'
+    paymentStatus.value = transfer.paymentStatus || 'processing'
     startPaymentStatusPolling()
   } catch (err: any) {
-    console.error('Create transfer error:', err)
-    transferError.value =
-      err.data?.message ||
-      err.message ||
-      'Test payment could not be submitted. You can safely try again.'
-    isTransferring.value = false
-    paymentStage.value = 'verified'
+    console.error('Payment confirmation error:', err)
+    cardError.value =
+      err.data?.message || err.message || 'Payment could not be completed. Please try again.'
+    paymentStage.value = 'ready'
   }
+}
+
+async function handleCardError(clientError: any, apiError?: any) {
+  console.error('Moov payment form error:', clientError, apiError)
+  paymentStage.value = 'ready'
+
+  let message = 'Payment failed. Please check your card details and try again.'
+  try {
+    const sources = [apiError, clientError]
+    for (const source of sources) {
+      if (!source) continue
+      let data = source
+      if (typeof source.json === 'function') data = await source.json()
+      else if (typeof source.clone === 'function') data = await source.clone().json()
+
+      if (typeof data === 'string' && data.trim()) {
+        message = data
+        break
+      }
+      if (data && typeof data === 'object') {
+        const parts: string[] = []
+        if (typeof data.error === 'string') parts.push(data.error)
+        if (typeof data.message === 'string') parts.push(data.message)
+        if (parts.length) {
+          message = parts.join(' ')
+          break
+        }
+      }
+    }
+  } catch {
+    // keep fallback
+  }
+  cardError.value = message
 }
 
 function startPaymentStatusPolling() {
   stopPolling()
   pollAttempts = 0
-  isTransferring.value = true
+  paymentStage.value = 'processing_payment'
   pollPaymentStatus()
 }
 
@@ -840,32 +871,26 @@ async function pollPaymentStatus() {
 
     if (status.paymentStatus === 'paid') {
       paymentStage.value = 'paid'
-      isTransferring.value = false
       stopPolling()
       await router.push(`/checkout/success?orderId=${orderId}`)
       return
     }
 
     if (status.paymentStatus === 'failed' || status.paymentStatus === 'cancelled') {
-      paymentStage.value = 'failed'
-      isTransferring.value = false
-      transferError.value =
-        'Payment failed. Your card was not charged again automatically — you can retry Submit Test Payment.'
-      paymentStage.value = 'verified'
+      paymentStage.value = 'ready'
+      cardError.value =
+        'Payment failed. You can safely try again — a new charge will not be created until you click Pay.'
       stopPolling()
       return
     }
-
-    paymentStage.value = 'processing_payment'
   } catch (err: any) {
     console.error('Payment status poll error:', err)
   }
 
   if (pollAttempts >= MAX_POLL_ATTEMPTS) {
-    isTransferring.value = false
-    paymentStage.value = 'verified'
-    transferError.value =
-      'Payment is still processing. Refresh this page in a moment, or retry Submit Test Payment if needed.'
+    paymentStage.value = 'ready'
+    cardError.value =
+      'Payment is still processing. Refresh this page in a moment, or click Pay again if needed.'
     stopPolling()
     return
   }
@@ -876,7 +901,6 @@ async function pollPaymentStatus() {
 onMounted(async () => {
   if (import.meta.client) {
     needsHttps.value = window.location.protocol !== 'https:'
-
     try {
       await loadMoovScript()
     } catch (err: any) {
@@ -899,11 +923,27 @@ useHead({
 </script>
 
 <style scoped>
+.pay-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.pay-input:focus {
+  border-color: rgba(45, 212, 191, 0.55);
+}
+
 .payment-card-drop-shell {
   border-radius: 0.75rem;
   border: 1px solid rgba(100, 116, 139, 0.55);
-  background:
-    linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.95) 100%);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.95) 100%);
   box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.08);
   padding: 0.75rem 0.875rem;
   min-height: 0;

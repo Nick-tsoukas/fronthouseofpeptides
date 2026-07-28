@@ -4,13 +4,17 @@ function normalizeOrder(entry: any) {
   const a = entry.attributes
   return {
     id: entry.id,
+    orderNumber: a.orderNumber || null,
     customerName: a.customerName,
     email: a.email,
     phone: a.phone || null,
     companyName: a.companyName || null,
     status: a.status,
+    paymentStatus: a.paymentStatus || null,
     amountTotal: a.amountTotal,
+    totalCents: a.totalCents ?? null,
     inventoryAdjusted: a.inventoryAdjusted ?? false,
+    inventoryCommitted: a.inventoryCommitted ?? false,
     itemCount: a.orderItems?.data?.length ?? 0,
     createdAt: a.createdAt,
   }
@@ -53,6 +57,7 @@ export default defineEventHandler(async (event) => {
       (o) =>
         o.customerName?.toLowerCase().includes(search) ||
         o.email?.toLowerCase().includes(search) ||
+        o.orderNumber?.toLowerCase().includes(search) ||
         String(o.id).includes(search)
     )
   }

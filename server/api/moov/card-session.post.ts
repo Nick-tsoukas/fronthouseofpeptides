@@ -7,6 +7,7 @@ import {
   safeLog,
 } from '~/server/utils/moov'
 import { validateCheckoutSession } from '~/server/utils/checkout-session'
+import { checkoutTrace, strapiHostname } from '~/server/utils/checkout-trace'
 
 interface RequestBody {
   orderId?: number
@@ -17,6 +18,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const config = useRuntimeConfig(event)
   const strapiUrl = config.public.strapiUrl as string
   const strapiToken = config.strapiToken as string
+  const strapiHost = strapiHostname(strapiUrl)
 
   const authHeaders: Record<string, string> = strapiToken
     ? { Authorization: `Bearer ${strapiToken}`, 'Content-Type': 'application/json' }
@@ -39,6 +41,7 @@ export default defineEventHandler(async (event: H3Event) => {
     requiredFields: [
       'customerName',
       'email',
+      'phone',
       'moovCustomerAccountId',
       'shippingStatus',
       'paymentStatus',
@@ -53,7 +56,9 @@ export default defineEventHandler(async (event: H3Event) => {
       'shippingDeliveryDays',
       'shippingFirstName',
       'shippingLastName',
+      'shippingPhone',
       'shippingAddress1',
+      'shippingAddress2',
       'shippingCity',
       'shippingState',
       'shippingPostalCode',
@@ -65,6 +70,29 @@ export default defineEventHandler(async (event: H3Event) => {
       'verificationAcknowledged',
     ],
   })
+
+  const shippingFirstName = (attrs.shippingFirstName || '').trim()
+  const shippingLastName = (attrs.shippingLastName || '').trim()
+  const customerName = (attrs.customerName || `${shippingFirstName} ${shippingLastName}`.trim()).trim()
+  const [parsedFirst, ...lastNameParts] = customerName.split(/\s+/)
+  const firstName = shippingFirstName || parsedFirst || ''
+  const lastName = shippingLastName || lastNameParts.join(' ') || ''
+  const email = (attrs.email || '').trim()
+  const phone = (attrs.phone || attrs.shippingPhone || '').trim()
+
+  const contact = {
+    firstName,
+    lastName,
+    customerName,
+    email,
+    phone,
+    shippingAddress1: (attrs.shippingAddress1 || '').trim(),
+    shippingAddress2: (attrs.shippingAddress2 || '').trim(),
+    shippingCity: (attrs.shippingCity || '').trim(),
+    shippingState: (attrs.shippingState || '').trim(),
+    shippingPostalCode: (attrs.shippingPostalCode || '').trim(),
+    shippingCountry: (attrs.shippingCountry || 'US').trim() || 'US',
+  }
 
   const orderSummary = {
     orderNumber: attrs.orderNumber || '',
@@ -78,7 +106,19 @@ export default defineEventHandler(async (event: H3Event) => {
     shippingCarrier: attrs.shippingCarrier || '',
     shippingService: attrs.shippingService || '',
     shippingDeliveryDays: attrs.shippingDeliveryDays ?? null,
+    ...contact,
   }
+
+  checkoutTrace('card-session', {
+    orderId,
+    orderNumber: orderSummary.orderNumber,
+    strapiHost,
+    paymentStatus: orderSummary.paymentStatus,
+    shippingStatus: orderSummary.shippingStatus,
+    hasMoovCardId: Boolean(attrs.moovCardId),
+    hasMoovPaymentMethodId: Boolean(attrs.moovPaymentMethodId),
+    hasMoovTransferId: Boolean(attrs.moovTransferId),
+  })
 
   if (attrs.shippingStatus !== 'selected') {
     return {
@@ -88,27 +128,17 @@ export default defineEventHandler(async (event: H3Event) => {
     }
   }
 
-  // Resume paths: no card Drop needed once transfer is in flight or paid
   if (attrs.paymentStatus === 'processing' || attrs.paymentStatus === 'paid') {
     return {
       ok: true,
       ...orderSummary,
-      customerName: (attrs.customerName || '').trim(),
-      email: (attrs.email || '').trim(),
     }
   }
-
-  // Parse first and last name from customerName
-  const customerName = (attrs.customerName || '').trim()
-  const [firstName, ...lastNameParts] = customerName.split(' ')
-  const lastName = lastNameParts.join(' ')
-  const email = (attrs.email || '').trim()
 
   if (!firstName || !email) {
     throw createError({ statusCode: 400, message: 'Order customer details are incomplete.' })
   }
 
-  // Reuse or create Moov customer account
   let customerAccountId = attrs.moovCustomerAccountId
   if (!customerAccountId) {
     try {
@@ -119,7 +149,6 @@ export default defineEventHandler(async (event: H3Event) => {
       })
       customerAccountId = account.accountID
 
-      // Store customer account ID on the order
       await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
         method: 'PUT',
         headers: authHeaders,
@@ -130,14 +159,13 @@ export default defineEventHandler(async (event: H3Event) => {
         console.error('Failed to save Moov customer account ID:', err?.message || err)
       })
 
-      safeLog('Moov customer account created', { orderId, customerAccountId })
+      safeLog('Moov customer account created', { orderId, customerAccountId, strapiHost })
     } catch (err: any) {
       console.error('Moov customer account creation failed:', err?.message || err)
       throw createError({ statusCode: 502, message: 'Could not create payment account. Please try again.' })
     }
   }
 
-  // Generate scoped OAuth token for card linking
   const scope = `/accounts/${customerAccountId}/cards.write`
   let accessToken: string
   let expiresIn: number
@@ -153,6 +181,8 @@ export default defineEventHandler(async (event: H3Event) => {
 
   safeLog('Moov card session created', {
     orderId,
+    orderNumber: orderSummary.orderNumber,
+    strapiHost,
     customerAccountId,
     merchantAccountId: moovConfig.accountId,
     mode: moovConfig.mode,
@@ -167,8 +197,6 @@ export default defineEventHandler(async (event: H3Event) => {
     merchantAccountId: moovConfig.accountId,
     mode: moovConfig.mode,
     expiresIn,
-    customerName,
-    email,
     ...orderSummary,
   }
 })

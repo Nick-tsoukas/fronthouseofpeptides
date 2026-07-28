@@ -9,7 +9,7 @@
       <input
         v-model="search"
         type="search"
-        placeholder="Search by name, email, or ID…"
+        placeholder="Search by name, email, order #, or ID…"
         class="flex-1 bg-dark-900 border border-dark-700 rounded-lg px-4 py-3 text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors text-sm"
       />
       <select
@@ -57,8 +57,16 @@
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2 mb-1">
               <span class="text-white font-semibold">#{{ order.id }}</span>
+              <span v-if="order.orderNumber" class="text-xs font-mono text-dark-400">{{ order.orderNumber }}</span>
               <StatusBadge :status="order.status" />
-              <span v-if="order.inventoryAdjusted" class="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">inv. adjusted</span>
+              <span
+                v-if="order.paymentStatus"
+                class="text-xs px-2 py-0.5 rounded-full border"
+                :class="order.paymentStatus === 'paid'
+                  ? 'text-green-400 bg-green-400/10 border-green-400/20'
+                  : 'text-amber-300 bg-amber-400/10 border-amber-400/20'"
+              >{{ order.paymentStatus }}</span>
+              <span v-if="order.inventoryCommitted || order.inventoryAdjusted" class="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">inv. committed</span>
             </div>
             <p class="text-dark-200 text-sm font-medium">{{ order.customerName }}</p>
             <p class="text-dark-400 text-xs">{{ order.email }}</p>
@@ -96,6 +104,7 @@ const filteredOrders = computed(() => {
     (o) =>
       o.customerName?.toLowerCase().includes(q) ||
       o.email?.toLowerCase().includes(q) ||
+      o.orderNumber?.toLowerCase().includes(q) ||
       String(o.id).includes(q)
   )
 })
