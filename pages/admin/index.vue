@@ -5,11 +5,11 @@
       <p class="text-dark-400 mt-1">Welcome to the Quantum Bio Peptides admin panel</p>
     </div>
 
-    <div v-if="pending" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-      <div v-for="i in 6" :key="i" class="bg-dark-900 rounded-xl border border-dark-700 p-6 animate-pulse h-28" />
+    <div v-if="pending" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div v-for="i in 8" :key="i" class="bg-dark-900 rounded-xl border border-dark-700 p-6 animate-pulse h-28" />
     </div>
 
-    <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+    <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <div v-for="card in cards" :key="card.label" class="bg-dark-900 rounded-xl border border-dark-700 p-6">
         <p class="text-dark-400 text-sm">{{ card.label }}</p>
         <p class="text-2xl font-bold text-white mt-1">{{ card.value }}</p>
@@ -85,6 +85,8 @@ const cards = computed(() => {
     { label: 'Revenue (paid)', value: s.revenueCents != null ? formatCents(s.revenueCents) : '—' },
     { label: 'Low stock variants', value: s.lowStockVariants ?? '—' },
     { label: 'Out of stock variants', value: s.outOfStockVariants ?? '—' },
+    { label: 'Manual sales today', value: s.manualSalesToday ?? '—' },
+    { label: 'Online orders today', value: s.onlineOrdersToday ?? '—' },
   ]
 })
 

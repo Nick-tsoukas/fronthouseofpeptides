@@ -17,6 +17,7 @@ export async function createInventoryAdjustmentLog(opts: {
   source: 'admin' | 'manual_sale' | 'online_order' | 'correction'
   relatedOrderId?: number | null
   createdByAdmin?: string | null
+  paymentMethod?: string | null
 }): Promise<boolean> {
   const data: Record<string, any> = {
     adjustmentType: opts.adjustmentType,
@@ -32,6 +33,7 @@ export async function createInventoryAdjustmentLog(opts: {
 
   if (opts.productId) data.product = opts.productId
   if (opts.relatedOrderId) data.relatedOrder = opts.relatedOrderId
+  if (opts.paymentMethod) data.paymentMethod = opts.paymentMethod
 
   try {
     await $fetch(`${opts.strapiUrl}/api/inventory-adjustments`, {
@@ -41,6 +43,21 @@ export async function createInventoryAdjustmentLog(opts: {
     })
     return true
   } catch (err: any) {
+    // Retry without paymentMethod if schema not yet redeployed
+    if (opts.paymentMethod && data.paymentMethod) {
+      try {
+        const { paymentMethod: _pm, ...fallback } = data
+        await $fetch(`${opts.strapiUrl}/api/inventory-adjustments`, {
+          method: 'POST',
+          headers: opts.authHeaders,
+          body: { data: fallback },
+        })
+        return true
+      } catch (err2: any) {
+        console.error('Inventory adjustment log failed:', err2?.message || err2)
+        return false
+      }
+    }
     console.error('Inventory adjustment log failed:', err?.message || err)
     return false
   }

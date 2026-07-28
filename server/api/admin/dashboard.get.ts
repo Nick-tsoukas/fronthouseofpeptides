@@ -1,5 +1,11 @@
 import { requireAdminAuth } from '~/server/utils/adminAuth'
 
+function startOfTodayIso() {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString()
+}
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   requireAdminAuth(event, config.ownerSessionSecret as string)
@@ -11,6 +17,8 @@ export default defineEventHandler(async (event) => {
     'Content-Type': 'application/json',
   }
 
+  const todayStart = startOfTodayIso()
+
   const ordersParams = new URLSearchParams()
   ordersParams.set('pagination[pageSize]', '100')
   ordersParams.set('sort', 'createdAt:desc')
@@ -19,18 +27,39 @@ export default defineEventHandler(async (event) => {
   ordersParams.set('fields[2]', 'totalCents')
   ordersParams.set('fields[3]', 'amountTotal')
   ordersParams.set('fields[4]', 'shippingStatus')
+  ordersParams.set('fields[5]', 'paymentProvider')
+  ordersParams.set('fields[6]', 'createdAt')
+  ordersParams.set('fields[7]', 'paidAt')
 
   const productsParams = new URLSearchParams()
   productsParams.set('populate[variants][fields][0]', 'inventory')
   productsParams.set('populate[variants][fields][1]', 'active')
   productsParams.set('pagination[pageSize]', '100')
 
-  const [ordersRes, productsRes] = await Promise.all([
+  const manualTodayParams = new URLSearchParams()
+  manualTodayParams.set('filters[source][$eq]', 'manual_sale')
+  manualTodayParams.set('filters[createdAt][$gte]', todayStart)
+  manualTodayParams.set('pagination[pageSize]', '1')
+
+  const onlineTodayParams = new URLSearchParams()
+  onlineTodayParams.set('filters[paymentStatus][$eq]', 'paid')
+  onlineTodayParams.set('filters[paymentProvider][$eq]', 'moov')
+  onlineTodayParams.set('filters[$or][0][paidAt][$gte]', todayStart)
+  onlineTodayParams.set('filters[$or][1][createdAt][$gte]', todayStart)
+  onlineTodayParams.set('pagination[pageSize]', '1')
+
+  const [ordersRes, productsRes, manualTodayRes, onlineTodayRes] = await Promise.all([
     $fetch<{ data: any[]; meta: any }>(`${strapiUrl}/api/orders?${ordersParams}`, { headers }).catch(
       () => ({ data: [], meta: null })
     ),
     $fetch<{ data: any[] }>(`${strapiUrl}/api/products?${productsParams}`, { headers }).catch(() => ({
       data: [],
+    })),
+    $fetch<{ meta: any }>(`${strapiUrl}/api/inventory-adjustments?${manualTodayParams}`, {
+      headers,
+    }).catch(() => ({ meta: null })),
+    $fetch<{ meta: any }>(`${strapiUrl}/api/orders?${onlineTodayParams}`, { headers }).catch(() => ({
+      meta: null,
     })),
   ])
 
@@ -73,6 +102,8 @@ export default defineEventHandler(async (event) => {
     revenueCents,
     lowStockVariants: lowStock,
     outOfStockVariants: outOfStock,
+    manualSalesToday: manualTodayRes.meta?.pagination?.total ?? 0,
+    onlineOrdersToday: onlineTodayRes.meta?.pagination?.total ?? 0,
     recentOrders: orders.slice(0, 5).map((entry: any) => {
       const a = entry.attributes || {}
       return {
