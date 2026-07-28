@@ -112,7 +112,33 @@
 
           <div v-else class="relative">
             <div
-              v-if="paymentStage === 'preparing' || paymentStage === 'processing_payment'"
+              v-if="paymentStage === 'awaiting_confirmation'"
+              class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-5 mb-4"
+            >
+              <p class="text-amber-300 text-sm font-semibold">Payment is processing</p>
+              <p class="text-amber-100/80 text-sm mt-2 leading-relaxed">
+                Payment is processing. Your order was submitted and is waiting for confirmation from Moov.
+              </p>
+              <div class="mt-4 flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  @click="checkPaymentStatus"
+                  :disabled="isCheckingStatus"
+                  class="px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold transition-colors"
+                >
+                  {{ isCheckingStatus ? 'Checking…' : 'Check payment status' }}
+                </button>
+                <NuxtLink
+                  :to="`/checkout/success?orderId=${orderId}`"
+                  class="px-4 py-2.5 rounded-xl bg-dark-800 hover:bg-dark-700 border border-dark-600 text-white text-sm font-medium text-center transition-colors"
+                >
+                  View order status
+                </NuxtLink>
+              </div>
+            </div>
+
+            <div
+              v-else-if="paymentStage === 'preparing' || paymentStage === 'processing_payment'"
               class="rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-5 text-center mb-4"
             >
               <div class="mx-auto mb-3 h-8 w-8 rounded-full border-2 border-primary-500/30 border-t-primary-400 animate-spin" />
@@ -123,7 +149,9 @@
             <div
               :class="{
                 'opacity-0 pointer-events-none absolute inset-0 overflow-hidden h-0':
-                  paymentStage === 'preparing' || paymentStage === 'processing_payment',
+                  paymentStage === 'preparing' ||
+                  paymentStage === 'processing_payment' ||
+                  paymentStage === 'awaiting_confirmation',
               }"
             >
             <!-- Contact / billing -->
@@ -369,6 +397,7 @@ type PaymentStage =
   | 'card_submitting'
   | 'preparing'
   | 'processing_payment'
+  | 'awaiting_confirmation'
   | 'paid'
   | 'failed'
 
@@ -429,12 +458,18 @@ const isBusy = computed(() =>
 
 const busyMessage = computed(() => {
   if (paymentStage.value === 'preparing') return 'Card verified. Preparing payment…'
-  return 'Processing secure payment…'
+  return 'Payment submitted. Waiting for confirmation from Moov…'
 })
 
 const displayPaymentStatus = computed(() => {
   if (paymentStage.value === 'paid' || paymentStatus.value === 'paid') return 'Paid'
-  if (isBusy.value || paymentStatus.value === 'processing') return 'Processing'
+  if (
+    paymentStage.value === 'processing_payment' ||
+    paymentStage.value === 'awaiting_confirmation' ||
+    paymentStatus.value === 'processing'
+  ) {
+    return 'Processing'
+  }
   if (paymentStatus.value === 'failed' || paymentStage.value === 'failed') return 'Failed'
   const status = paymentStatus.value || 'pending'
   return status.charAt(0).toUpperCase() + status.slice(1)
@@ -469,11 +504,17 @@ const cardReady = ref(false)
 const showCardForm = ref(false)
 const cardLinkRef = ref<any>(null)
 const cardLinkedOnServer = ref(false)
+const isCheckingStatus = ref(false)
+
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+let pollAttempts = 0
+let submitWatchdog: ReturnType<typeof setTimeout> | null = null
+const MAX_POLL_ATTEMPTS = 30 // 60 seconds at 2s interval
+const CARD_SUBMIT_TIMEOUT_MS = 45000
 
 const payButtonLabel = computed(() => {
   if (paymentStage.value === 'card_submitting') return 'Processing secure payment…'
   if (!cardReady.value && !cardLinkedOnServer.value) return 'Loading secure payment form…'
-  if (cardLinkedOnServer.value) return `Pay ${formatCents(totalCents.value)}`
   return `Pay ${formatCents(totalCents.value)}`
 })
 
@@ -489,12 +530,6 @@ const canPay = computed(() => {
   if (cardLinkedOnServer.value) return sessionOk
   return sessionOk && cardReady.value && showCardForm.value
 })
-
-let pollTimer: ReturnType<typeof setTimeout> | null = null
-let pollAttempts = 0
-let submitWatchdog: ReturnType<typeof setTimeout> | null = null
-const MAX_POLL_ATTEMPTS = 40
-const CARD_SUBMIT_TIMEOUT_MS = 45000
 
 function effectiveBillingAddress() {
   if (billingSameAsShipping.value) {
@@ -905,38 +940,56 @@ function startPaymentStatusPolling() {
   stopPolling()
   pollAttempts = 0
   paymentStage.value = 'processing_payment'
+  paymentStatus.value = 'processing'
   pollPaymentStatus()
+}
+
+async function applyStatusPayload(status: {
+  paymentStatus?: string
+  orderNumber?: string
+  subtotalCents?: number
+  shippingCostCents?: number
+  taxCents?: number
+  totalCents?: number
+  shippingStatus?: string
+  shippingCarrier?: string | null
+  shippingService?: string | null
+}) {
+  paymentStatus.value = status.paymentStatus || paymentStatus.value
+  if (status.orderNumber) orderNumber.value = status.orderNumber
+  if (status.subtotalCents != null) subtotalCents.value = Number(status.subtotalCents) || 0
+  if (status.shippingCostCents != null) shippingCostCents.value = Number(status.shippingCostCents) || 0
+  if (status.taxCents != null) taxCents.value = Number(status.taxCents) || 0
+  if (status.totalCents != null) totalCents.value = Number(status.totalCents) || 0
+  if (status.shippingStatus) shippingStatus.value = status.shippingStatus
+  if (status.shippingCarrier) shippingCarrier.value = status.shippingCarrier
+  if (status.shippingService) shippingService.value = status.shippingService
+}
+
+async function fetchPaymentStatus() {
+  return await $fetch<{
+    ok?: boolean
+    paymentStatus?: string
+    orderNumber?: string
+    subtotalCents?: number
+    shippingCostCents?: number
+    taxCents?: number
+    totalCents?: number
+    shippingStatus?: string
+    shippingCarrier?: string | null
+    shippingService?: string | null
+  }>('/api/checkout/status', {
+    query: { orderId },
+    credentials: 'include',
+  })
 }
 
 async function pollPaymentStatus() {
   pollAttempts += 1
 
   try {
-    const status = await $fetch<{
-      ok?: boolean
-      paymentStatus?: string
-      orderNumber?: string
-      subtotalCents?: number
-      shippingCostCents?: number
-      taxCents?: number
-      totalCents?: number
-      shippingStatus?: string
-      shippingCarrier?: string | null
-      shippingService?: string | null
-    }>('/api/checkout/status', {
-      query: { orderId },
-      credentials: 'include',
-    })
-
-    paymentStatus.value = status.paymentStatus || paymentStatus.value
-    if (status.orderNumber) orderNumber.value = status.orderNumber
-    if (status.subtotalCents != null) subtotalCents.value = Number(status.subtotalCents) || 0
-    if (status.shippingCostCents != null) shippingCostCents.value = Number(status.shippingCostCents) || 0
-    if (status.taxCents != null) taxCents.value = Number(status.taxCents) || 0
-    if (status.totalCents != null) totalCents.value = Number(status.totalCents) || 0
-    if (status.shippingStatus) shippingStatus.value = status.shippingStatus
-    if (status.shippingCarrier) shippingCarrier.value = status.shippingCarrier
-    if (status.shippingService) shippingService.value = status.shippingService
+    const status = await fetchPaymentStatus()
+    await applyStatusPayload(status)
 
     if (status.paymentStatus === 'paid') {
       paymentStage.value = 'paid'
@@ -948,7 +1001,7 @@ async function pollPaymentStatus() {
     if (status.paymentStatus === 'failed' || status.paymentStatus === 'cancelled') {
       paymentStage.value = 'ready'
       cardError.value =
-        'Payment failed. You can safely try again — a new charge will not be created until you click Pay.'
+        'Payment failed. Please try another card or contact support.'
       stopPolling()
       return
     }
@@ -957,14 +1010,42 @@ async function pollPaymentStatus() {
   }
 
   if (pollAttempts >= MAX_POLL_ATTEMPTS) {
-    paymentStage.value = 'ready'
-    cardError.value =
-      'Payment is still processing. Refresh this page in a moment, or click Pay again if needed.'
+    paymentStage.value = 'awaiting_confirmation'
+    paymentStatus.value = 'processing'
     stopPolling()
     return
   }
 
   pollTimer = setTimeout(pollPaymentStatus, 2000)
+}
+
+async function checkPaymentStatus() {
+  isCheckingStatus.value = true
+  cardError.value = null
+  try {
+    const status = await fetchPaymentStatus()
+    await applyStatusPayload(status)
+
+    if (status.paymentStatus === 'paid') {
+      paymentStage.value = 'paid'
+      await router.push(`/checkout/success?orderId=${orderId}`)
+      return
+    }
+
+    if (status.paymentStatus === 'failed' || status.paymentStatus === 'cancelled') {
+      paymentStage.value = 'ready'
+      cardError.value = 'Payment failed. Please try another card or contact support.'
+      return
+    }
+
+    paymentStage.value = 'awaiting_confirmation'
+    paymentStatus.value = 'processing'
+  } catch (err: any) {
+    console.error('Check payment status error:', err)
+    cardError.value = err.data?.message || err.message || 'Could not check payment status.'
+  } finally {
+    isCheckingStatus.value = false
+  }
 }
 
 onMounted(async () => {

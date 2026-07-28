@@ -227,6 +227,8 @@ export async function createMoovTransfer(
     method: 'POST',
     headers: moovHeaders(config, {
       'X-Idempotency-Key': idempotencyKey,
+      // Documented by Moov create-transfer API — wait for rail response when available.
+      'X-Wait-For': 'rail-response',
     }),
     body: JSON.stringify({
       source: { paymentMethodID: body.sourcePaymentMethodId },
@@ -301,8 +303,8 @@ export function mapMoovTransferToPaymentStatus(
   transferStatus: string
 ): 'processing' | 'paid' | 'failed' | 'refunded' | null {
   const status = String(transferStatus || '').toLowerCase()
-  if (status === 'pending' || status === 'queued') return 'processing'
-  if (status === 'completed') return 'paid'
+  if (status === 'pending' || status === 'queued' || status === 'processing') return 'processing'
+  if (status === 'completed' || status === 'succeeded') return 'paid'
   if (status === 'failed' || status === 'canceled' || status === 'cancelled') return 'failed'
   if (status === 'reversed') return 'refunded'
   return null
