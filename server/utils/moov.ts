@@ -164,6 +164,103 @@ export async function getAccountCards(
   return data || []
 }
 
+export async function getPaymentMethod(
+  config: MoovConfig,
+  accountId: string,
+  paymentMethodId: string
+): Promise<any> {
+  const methods = await getAccountPaymentMethods(config, accountId)
+  return (
+    methods.find(
+      (pm) =>
+        pm.paymentMethodID === paymentMethodId ||
+        pm.paymentMethodId === paymentMethodId
+    ) || null
+  )
+}
+
+export function findMoovWalletPaymentMethod(methods: any[]): any | null {
+  return (
+    methods.find((pm) => pm.paymentMethodType === 'moov-wallet') || null
+  )
+}
+
+export function isCardPaymentMethodAvailable(pm: any): boolean {
+  if (!pm || pm.paymentMethodType !== 'card-payment') return false
+  const status = String(pm.status || pm.card?.status || '').toLowerCase()
+  if (status && ['disabled', 'failed', 'closed', 'errored'].includes(status)) {
+    return false
+  }
+  return true
+}
+
+export async function getMoovTransfer(
+  config: MoovConfig,
+  transferId: string
+): Promise<any> {
+  const res = await fetch(
+    `${MOOV_API_BASE}/accounts/${config.accountId}/transfers/${transferId}`,
+    {
+      method: 'GET',
+      headers: moovHeaders(config),
+    }
+  )
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Moov get transfer failed ${res.status}: ${text}`)
+  }
+
+  return await res.json()
+}
+
+export async function createMoovTransfer(
+  config: MoovConfig,
+  body: {
+    sourcePaymentMethodId: string
+    destinationPaymentMethodId: string
+    amountCents: number
+    description: string
+    metadata?: Record<string, string>
+  },
+  idempotencyKey: string
+): Promise<any> {
+  const res = await fetch(`${MOOV_API_BASE}/accounts/${config.accountId}/transfers`, {
+    method: 'POST',
+    headers: moovHeaders(config, {
+      'X-Idempotency-Key': idempotencyKey,
+    }),
+    body: JSON.stringify({
+      source: { paymentMethodID: body.sourcePaymentMethodId },
+      destination: { paymentMethodID: body.destinationPaymentMethodId },
+      amount: {
+        currency: 'USD',
+        value: body.amountCents,
+      },
+      description: body.description,
+      metadata: body.metadata || {},
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Moov create transfer failed ${res.status}: ${text}`)
+  }
+
+  return await res.json()
+}
+
+export function mapMoovTransferToPaymentStatus(
+  transferStatus: string
+): 'processing' | 'paid' | 'failed' | 'refunded' | null {
+  const status = String(transferStatus || '').toLowerCase()
+  if (status === 'pending' || status === 'queued') return 'processing'
+  if (status === 'completed') return 'paid'
+  if (status === 'failed' || status === 'canceled' || status === 'cancelled') return 'failed'
+  if (status === 'reversed') return 'refunded'
+  return null
+}
+
 export function safeLog(label: string, data: Record<string, unknown>): void {
   console.log(label, data)
 }

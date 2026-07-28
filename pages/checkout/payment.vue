@@ -3,9 +3,6 @@
     <div class="mx-auto max-w-[1100px] px-4 sm:px-6 lg:px-8 py-10 lg:py-12">
 
       <div class="mb-8 max-w-3xl">
-        <p class="text-primary-400/90 text-xs font-semibold tracking-[0.18em] uppercase mb-3">
-          Encrypted checkout
-        </p>
         <h1 class="text-3xl sm:text-4xl font-bold text-white tracking-tight">Secure Payment</h1>
         <p class="text-dark-300 mt-2 text-base sm:text-lg leading-relaxed">
           Pay securely with a debit or credit card.
@@ -92,7 +89,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              Your card details are encrypted and processed securely by Moov.
+              Card details are encrypted and processed securely by Moov.
             </p>
           </div>
 
@@ -106,27 +103,59 @@
           </div>
 
           <div
-            v-if="paymentStage === 'verified'"
-            class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4"
-          >
-            <p class="text-emerald-400 text-sm font-semibold">Card verified</p>
-            <p class="text-emerald-100/80 text-sm mt-1 leading-relaxed">
-              Card verified. Payment submission is not enabled yet.
-            </p>
-            <p class="text-dark-400 text-xs mt-3">
-              Order {{ orderNumber }} remains payment-pending until a server-side transfer is confirmed.
-            </p>
-          </div>
-
-          <div
-            v-else-if="paymentStage === 'paid'"
+            v-if="paymentStage === 'paid'"
             class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4"
           >
             <p class="text-emerald-400 text-sm font-semibold">Payment confirmed</p>
-            <p class="text-emerald-100/80 text-sm mt-1">Your order has been marked paid by the server.</p>
+            <p class="text-emerald-100/80 text-sm mt-1">Redirecting to your order confirmation…</p>
+          </div>
+
+          <div
+            v-else-if="paymentStage === 'transferring' || paymentStage === 'processing_payment'"
+            class="rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-5 text-center"
+          >
+            <div class="mx-auto mb-3 h-8 w-8 rounded-full border-2 border-primary-500/30 border-t-primary-400 animate-spin" />
+            <p class="text-primary-300 text-sm font-semibold">Processing test payment…</p>
+            <p class="text-dark-400 text-xs mt-2">Confirming transfer status with the payment provider.</p>
+          </div>
+
+          <div
+            v-else-if="paymentStage === 'verified'"
+            class="space-y-4"
+          >
+            <div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4">
+              <p class="text-emerald-400 text-sm font-semibold">Card verified</p>
+              <p class="text-emerald-100/80 text-sm mt-1 leading-relaxed">
+                Card verified. Ready to submit test payment.
+              </p>
+            </div>
+
+            <div
+              v-if="transferError"
+              class="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3"
+            >
+              <p class="text-red-400 text-sm leading-relaxed">{{ transferError }}</p>
+            </div>
+
+            <button
+              @click="submitTransfer"
+              :disabled="isTransferring"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-base font-semibold transition-all duration-200
+                bg-primary-500 hover:bg-primary-600 text-white
+                disabled:bg-dark-800 disabled:text-dark-500 disabled:border disabled:border-dark-700 disabled:cursor-not-allowed
+                shadow-lg shadow-primary-500/10 disabled:shadow-none"
+            >
+              <svg v-if="isTransferring" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ isTransferring ? 'Processing test payment…' : 'Submit Test Payment' }}
+            </button>
           </div>
 
           <template v-else>
+            <p class="mb-3 text-dark-400 text-sm">Enter your card details to continue.</p>
+
             <ClientOnly>
               <div class="payment-card-drop-shell">
                 <moov-card-link
@@ -135,13 +164,13 @@
                 ></moov-card-link>
                 <div
                   v-else
-                  class="py-10 text-center text-dark-400 text-sm"
+                  class="py-8 text-center text-dark-400 text-sm"
                 >
                   Loading secure payment form…
                 </div>
               </div>
               <template #fallback>
-                <div class="py-10 text-center text-dark-400 text-sm">
+                <div class="payment-card-drop-shell py-8 text-center text-dark-400 text-sm">
                   Loading secure payment form…
                 </div>
               </template>
@@ -149,7 +178,7 @@
 
             <div
               v-if="cardError"
-              class="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3"
+              class="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3"
             >
               <p class="text-red-400 text-sm leading-relaxed">{{ cardError }}</p>
             </div>
@@ -157,7 +186,7 @@
             <button
               @click="submitPayment"
               :disabled="!canPay"
-              class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-base font-semibold transition-all duration-200
+              class="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-base font-semibold transition-all duration-200
                 bg-primary-500 hover:bg-primary-600 text-white
                 disabled:bg-dark-800 disabled:text-dark-500 disabled:border disabled:border-dark-700 disabled:cursor-not-allowed
                 shadow-lg shadow-primary-500/10 disabled:shadow-none"
@@ -169,6 +198,10 @@
               {{ payButtonLabel }}
             </button>
           </template>
+
+          <p class="mt-5 text-center text-dark-500 text-[11px] tracking-wide">
+            Powered by Moov secure payment infrastructure.
+          </p>
         </section>
 
         <aside class="lg:sticky lg:top-8 order-first lg:order-none">
@@ -200,11 +233,11 @@
                 <span class="text-dark-400">Payment status</span>
                 <span
                   class="inline-flex items-center gap-1.5"
-                  :class="paymentStage === 'paid' ? 'text-emerald-400' : 'text-amber-400'"
+                  :class="paymentStatusClass"
                 >
                   <span
                     class="w-1.5 h-1.5 rounded-full"
-                    :class="paymentStage === 'paid' ? 'bg-emerald-400' : 'bg-amber-400'"
+                    :class="paymentStatusDotClass"
                   ></span>
                   {{ displayPaymentStatus }}
                 </span>
@@ -241,7 +274,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { CURRENCY } from '~/constants'
 
 interface CardSessionResponse {
@@ -267,7 +300,14 @@ interface CardSessionResponse {
   shippingDeliveryDays?: number | null
 }
 
-type PaymentStage = 'ready' | 'processing' | 'verified' | 'paid'
+type PaymentStage =
+  | 'ready'
+  | 'processing'
+  | 'verified'
+  | 'transferring'
+  | 'processing_payment'
+  | 'paid'
+  | 'failed'
 
 const MOOV_INPUT_STYLE = {
   color: '#f8fafc',
@@ -278,6 +318,7 @@ const MOOV_INPUT_STYLE = {
 }
 
 const route = useRoute()
+const router = useRouter()
 const config = useRuntimeConfig()
 
 const orderId = Number(route.query.orderId)
@@ -301,10 +342,26 @@ const invalidTotal = computed(() => !totalCents.value || totalCents.value <= 0)
 const formatCents = (cents: number) => `${CURRENCY.SYMBOL}${((Number(cents) || 0) / 100).toFixed(2)}`
 
 const displayPaymentStatus = computed(() => {
-  if (paymentStage.value === 'paid') return 'Paid'
+  if (paymentStage.value === 'paid' || paymentStatus.value === 'paid') return 'Paid'
+  if (paymentStage.value === 'transferring' || paymentStage.value === 'processing_payment' || paymentStatus.value === 'processing') {
+    return 'Processing'
+  }
+  if (paymentStatus.value === 'failed' || paymentStage.value === 'failed') return 'Failed'
   if (paymentStage.value === 'verified') return 'Pending'
   const status = paymentStatus.value || 'pending'
   return status.charAt(0).toUpperCase() + status.slice(1)
+})
+
+const paymentStatusClass = computed(() => {
+  if (paymentStage.value === 'paid' || paymentStatus.value === 'paid') return 'text-emerald-400'
+  if (paymentStatus.value === 'failed' || paymentStage.value === 'failed') return 'text-red-400'
+  return 'text-amber-400'
+})
+
+const paymentStatusDotClass = computed(() => {
+  if (paymentStage.value === 'paid' || paymentStatus.value === 'paid') return 'bg-emerald-400'
+  if (paymentStatus.value === 'failed' || paymentStage.value === 'failed') return 'bg-red-400'
+  return 'bg-amber-400'
 })
 
 const displayShippingStatus = computed(() => {
@@ -314,8 +371,10 @@ const displayShippingStatus = computed(() => {
 
 const isLoading = ref(true)
 const isProcessing = ref(false)
+const isTransferring = ref(false)
 const error = ref<string | null>(null)
 const cardError = ref<string | null>(null)
+const transferError = ref<string | null>(null)
 
 const accessToken = ref('')
 const customerAccountId = ref('')
@@ -324,6 +383,10 @@ const merchantAccountId = ref('')
 const cardReady = ref(false)
 const showCardForm = ref(false)
 const cardLinkRef = ref<any>(null)
+
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+let pollAttempts = 0
+const MAX_POLL_ATTEMPTS = 40
 
 const canPay = computed(() => {
   return (
@@ -337,10 +400,17 @@ const canPay = computed(() => {
 })
 
 const payButtonLabel = computed(() => {
-  if (isProcessing.value) return 'Processing secure card verification…'
+  if (isProcessing.value) return 'Verifying card…'
   if (!cardReady.value) return 'Loading secure payment form…'
-  return `Pay ${formatCents(totalCents.value)}`
+  return 'Verify Card'
 })
+
+function stopPolling() {
+  if (pollTimer) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
+}
 
 function normalizeMoovSuccessPayload(payload: any): any {
   if (!payload) return null
@@ -353,7 +423,6 @@ function normalizeMoovSuccessPayload(payload: any): any {
     return payload.detail
   }
 
-  // Some Drop builds pass an Event-like object with detail.
   if (payload?.detail != null && typeof payload.detail === 'object') {
     return payload.detail
   }
@@ -379,7 +448,6 @@ function extractMoovCardId(payload: any): string | null {
     normalized?.detail?.result?.cardId,
     normalized?.detail?.data?.cardID,
     normalized?.detail?.data?.cardId,
-    // Fallbacks if normalize didn't unwrap and raw payload still has nested fields
     payload?.cardID,
     payload?.cardId,
     payload?.id,
@@ -503,7 +571,6 @@ function configureCardLinkDrop(retries = 0) {
     drop.onSuccess = handleCardSuccess
     drop.onError = handleCardError
 
-    // Also listen for CustomEvent-style success if the Drop dispatches events.
     if (typeof drop.addEventListener === 'function' && !drop.__qbpSuccessBound) {
       drop.addEventListener('success', (event: any) => handleCardSuccess(event))
       drop.__qbpSuccessBound = true
@@ -525,8 +592,10 @@ async function loadSession() {
   isLoading.value = true
   error.value = null
   cardError.value = null
+  transferError.value = null
   paymentBlocked.value = null
   paymentStage.value = 'ready'
+  stopPolling()
 
   try {
     if (!orderId) {
@@ -556,6 +625,19 @@ async function loadSession() {
     if (!session.totalCents || Number(session.totalCents) <= 0) {
       error.value = 'Order total is missing from the server. Return to checkout and select a shipping rate.'
       isLoading.value = false
+      return
+    }
+
+    if (session.paymentStatus === 'paid') {
+      paymentStage.value = 'paid'
+      await router.push(`/checkout/success?orderId=${orderId}`)
+      return
+    }
+
+    if (session.paymentStatus === 'processing') {
+      paymentStage.value = 'processing_payment'
+      isLoading.value = false
+      startPaymentStatusPolling()
       return
     }
 
@@ -602,7 +684,7 @@ async function submitPayment() {
     drop.submit()
   } catch (err: any) {
     console.error('Payment submit error:', err)
-    cardError.value = err.message || 'Could not submit payment.'
+    cardError.value = err.message || 'Could not verify card.'
     isProcessing.value = false
     paymentStage.value = 'ready'
   }
@@ -627,13 +709,11 @@ async function handleCardSuccess(payload: any) {
     })
 
     paymentStatus.value = (result as any).paymentStatus || 'pending'
-
-    // Transfer capture is not implemented yet — do not mark paid from the client.
     paymentStage.value = 'verified'
     isProcessing.value = false
   } catch (err: any) {
     console.error('Payment confirmation error:', err)
-    cardError.value = err.data?.message || err.message || 'Payment could not be confirmed. Please try again.'
+    cardError.value = err.data?.message || err.message || 'Card could not be verified. Please try again.'
     isProcessing.value = false
     paymentStage.value = 'ready'
   }
@@ -649,7 +729,7 @@ async function handleCardError(clientError: any, apiError?: any) {
     logSafeMoovPayloadShape(apiError, 'api-error')
   }
 
-  let message = 'Payment failed. Please check your card details and try again.'
+  let message = 'Card verification failed. Please check your card details and try again.'
 
   try {
     const sources = [apiError, clientError]
@@ -690,6 +770,109 @@ async function handleCardError(clientError: any, apiError?: any) {
   cardError.value = message
 }
 
+async function submitTransfer() {
+  transferError.value = null
+  isTransferring.value = true
+  paymentStage.value = 'transferring'
+
+  try {
+    const result = await $fetch<{
+      ok?: boolean
+      orderNumber?: string
+      paymentStatus?: string
+      transferCreated?: boolean
+    }>('/api/moov/create-transfer', {
+      method: 'POST',
+      body: { orderId },
+      credentials: 'include',
+    })
+
+    paymentStatus.value = result.paymentStatus || 'processing'
+    paymentStage.value = 'processing_payment'
+    startPaymentStatusPolling()
+  } catch (err: any) {
+    console.error('Create transfer error:', err)
+    transferError.value =
+      err.data?.message ||
+      err.message ||
+      'Test payment could not be submitted. You can safely try again.'
+    isTransferring.value = false
+    paymentStage.value = 'verified'
+  }
+}
+
+function startPaymentStatusPolling() {
+  stopPolling()
+  pollAttempts = 0
+  isTransferring.value = true
+  pollPaymentStatus()
+}
+
+async function pollPaymentStatus() {
+  pollAttempts += 1
+
+  try {
+    const status = await $fetch<{
+      ok?: boolean
+      paymentStatus?: string
+      orderNumber?: string
+      subtotalCents?: number
+      shippingCostCents?: number
+      taxCents?: number
+      totalCents?: number
+      shippingStatus?: string
+      shippingCarrier?: string | null
+      shippingService?: string | null
+    }>('/api/checkout/status', {
+      query: { orderId },
+      credentials: 'include',
+    })
+
+    paymentStatus.value = status.paymentStatus || paymentStatus.value
+    if (status.orderNumber) orderNumber.value = status.orderNumber
+    if (status.subtotalCents != null) subtotalCents.value = Number(status.subtotalCents) || 0
+    if (status.shippingCostCents != null) shippingCostCents.value = Number(status.shippingCostCents) || 0
+    if (status.taxCents != null) taxCents.value = Number(status.taxCents) || 0
+    if (status.totalCents != null) totalCents.value = Number(status.totalCents) || 0
+    if (status.shippingStatus) shippingStatus.value = status.shippingStatus
+    if (status.shippingCarrier) shippingCarrier.value = status.shippingCarrier
+    if (status.shippingService) shippingService.value = status.shippingService
+
+    if (status.paymentStatus === 'paid') {
+      paymentStage.value = 'paid'
+      isTransferring.value = false
+      stopPolling()
+      await router.push(`/checkout/success?orderId=${orderId}`)
+      return
+    }
+
+    if (status.paymentStatus === 'failed' || status.paymentStatus === 'cancelled') {
+      paymentStage.value = 'failed'
+      isTransferring.value = false
+      transferError.value =
+        'Payment failed. Your card was not charged again automatically — you can retry Submit Test Payment.'
+      paymentStage.value = 'verified'
+      stopPolling()
+      return
+    }
+
+    paymentStage.value = 'processing_payment'
+  } catch (err: any) {
+    console.error('Payment status poll error:', err)
+  }
+
+  if (pollAttempts >= MAX_POLL_ATTEMPTS) {
+    isTransferring.value = false
+    paymentStage.value = 'verified'
+    transferError.value =
+      'Payment is still processing. Refresh this page in a moment, or retry Submit Test Payment if needed.'
+    stopPolling()
+    return
+  }
+
+  pollTimer = setTimeout(pollPaymentStatus, 2000)
+}
+
 onMounted(async () => {
   if (import.meta.client) {
     needsHttps.value = window.location.protocol !== 'https:'
@@ -706,6 +889,10 @@ onMounted(async () => {
   await loadSession()
 })
 
+onBeforeUnmount(() => {
+  stopPolling()
+})
+
 useHead({
   title: 'Secure Payment — Quantum Bio Peptides',
 })
@@ -714,18 +901,20 @@ useHead({
 <style scoped>
 .payment-card-drop-shell {
   border-radius: 0.75rem;
-  border: 1px solid rgba(100, 116, 139, 0.45);
-  background: rgba(15, 23, 42, 0.92);
-  padding: 0.875rem 1rem;
-  min-height: 168px;
+  border: 1px solid rgba(100, 116, 139, 0.55);
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.95) 100%);
+  box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.08);
+  padding: 0.75rem 0.875rem;
+  min-height: 0;
   overflow: hidden;
 }
 
 .payment-card-drop-shell :deep(moov-card-link) {
   display: block;
   width: 100%;
-  min-height: 140px;
-  max-height: 220px;
+  min-height: 120px;
+  max-height: 200px;
   overflow: hidden;
   color: #f8fafc;
   font-size: 16px;

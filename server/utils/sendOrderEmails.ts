@@ -327,3 +327,112 @@ export async function sendOrderRequestEmails(
 
   return { customerSent, ownerSent, errors }
 }
+
+export interface PaidOrderEmailData extends OrderEmailData {
+  orderNumber: string
+}
+
+function buildPaidCustomerHtml(data: PaidOrderEmailData): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:system-ui,sans-serif;color:#e5e7eb;">
+  <div style="max-width:600px;margin:40px auto;background:#111;border:1px solid #2d2d2d;border-radius:12px;overflow:hidden;">
+    <div style="background:#0f172a;padding:32px;border-bottom:1px solid #2d2d2d;">
+      <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#6366f1;">Quantum Bio Peptides</p>
+      <h1 style="margin:0;font-size:22px;font-weight:700;color:#fff;">Payment Confirmed</h1>
+    </div>
+    <div style="padding:32px;">
+      <p style="margin:0 0 16px;">Hi ${data.customerName},</p>
+      <p style="margin:0 0 24px;color:#9ca3af;">Your payment was confirmed. Order <strong style="color:#fff;">${data.orderNumber}</strong> is paid.</p>
+      ${itemsTableHtml(data.items)}
+      ${totalsHtml(data)}
+      <p style="margin:24px 0 0;color:#9ca3af;font-size:13px;">Ship to:<br/>${formatAddress(data).replace(/\n/g, '<br/>')}</p>
+    </div>
+  </div>
+</body>
+</html>`
+}
+
+function buildPaidOwnerHtml(data: PaidOrderEmailData): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:system-ui,sans-serif;color:#e5e7eb;">
+  <div style="max-width:600px;margin:40px auto;background:#111;border:1px solid #2d2d2d;border-radius:12px;overflow:hidden;">
+    <div style="background:#0f172a;padding:24px 32px;border-bottom:1px solid #2d2d2d;">
+      <p style="margin:0;font-size:12px;color:#9ca3af;">Paid order notification</p>
+      <h1 style="margin:4px 0 0;font-size:20px;color:#fff;">${data.orderNumber}</h1>
+    </div>
+    <div style="padding:24px 32px;">
+      <p style="margin:0 0 12px;color:#9ca3af;">Customer: ${data.customerName} &lt;${data.email}&gt;</p>
+      <p style="margin:0 0 16px;color:#9ca3af;">Inventory adjusted: ${data.inventoryAdjusted ? 'yes' : 'no'}</p>
+      ${itemsTableHtml(data.items)}
+      ${totalsHtml(data)}
+    </div>
+  </div>
+</body>
+</html>`
+}
+
+export async function sendPaidOrderEmails(
+  data: PaidOrderEmailData,
+  config: {
+    smtpHost: string
+    smtpPort: string
+    smtpUser: string
+    smtpPass: string
+    orderFromEmail: string
+    ownerOrderEmail: string
+  }
+): Promise<{ customerSent: boolean; ownerSent: boolean; errors: string[] }> {
+  const errors: string[] = []
+
+  if (!config.smtpHost || !config.smtpUser || !config.smtpPass) {
+    errors.push('SMTP not configured — skipping email.')
+    return { customerSent: false, ownerSent: false, errors }
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: config.smtpHost,
+    port: parseInt(config.smtpPort, 10) || 587,
+    secure: false,
+    auth: {
+      user: config.smtpUser,
+      pass: config.smtpPass,
+    },
+  })
+
+  let customerSent = false
+  let ownerSent = false
+
+  try {
+    await transporter.sendMail({
+      from: config.orderFromEmail,
+      to: data.email,
+      subject: `Payment confirmed — ${data.orderNumber}`,
+      html: buildPaidCustomerHtml(data),
+    })
+    customerSent = true
+  } catch (err: any) {
+    console.error(`[email] Paid customer email failed for ${data.orderNumber}:`, err?.message || err)
+    errors.push('Customer confirmation email failed to send.')
+  }
+
+  if (config.ownerOrderEmail) {
+    try {
+      await transporter.sendMail({
+        from: config.orderFromEmail,
+        to: config.ownerOrderEmail,
+        subject: `Paid order ${data.orderNumber}`,
+        html: buildPaidOwnerHtml(data),
+      })
+      ownerSent = true
+    } catch (err: any) {
+      console.error(`[email] Paid owner email failed for ${data.orderNumber}:`, err?.message || err)
+      errors.push('Owner notification email failed to send.')
+    }
+  }
+
+  return { customerSent, ownerSent, errors }
+}

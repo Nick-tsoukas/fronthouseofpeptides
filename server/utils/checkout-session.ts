@@ -38,6 +38,9 @@ export async function validateCheckoutSession(
     token?: string
     orderId?: number
     requiredFields?: string[]
+    allowedOrderStatuses?: string[]
+    allowedPaymentStatuses?: string[]
+    skipStatusGate?: boolean
   } = {}
 ): Promise<ValidatedCheckoutOrder> {
   const config = useRuntimeConfig(event)
@@ -96,8 +99,13 @@ export async function validateCheckoutSession(
     throw createError({ statusCode: 401, message: 'Invalid checkout session.' })
   }
 
-  if (attrs.status !== 'awaiting_payment' || attrs.paymentStatus !== 'pending') {
-    throw createError({ statusCode: 400, message: 'Order is not available for checkout.' })
+  if (!opts.skipStatusGate) {
+    const allowedOrderStatuses = opts.allowedOrderStatuses || ['awaiting_payment']
+    const allowedPaymentStatuses = opts.allowedPaymentStatuses || ['pending']
+
+    if (!allowedOrderStatuses.includes(attrs.status) || !allowedPaymentStatuses.includes(attrs.paymentStatus)) {
+      throw createError({ statusCode: 400, message: 'Order is not available for checkout.' })
+    }
   }
 
   return { orderId, attributes: attrs }

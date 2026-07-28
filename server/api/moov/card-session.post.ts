@@ -35,6 +35,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const { attributes: attrs } = await validateCheckoutSession(event, {
     orderId,
     token: checkoutSessionToken || undefined,
+    allowedPaymentStatuses: ['pending', 'processing', 'paid', 'failed'],
     requiredFields: [
       'customerName',
       'email',
@@ -84,6 +85,16 @@ export default defineEventHandler(async (event: H3Event) => {
       ok: false,
       paymentBlocked: 'Shipping must be selected before payment.',
       ...orderSummary,
+    }
+  }
+
+  // Resume paths: no card Drop needed once transfer is in flight or paid
+  if (attrs.paymentStatus === 'processing' || attrs.paymentStatus === 'paid') {
+    return {
+      ok: true,
+      ...orderSummary,
+      customerName: (attrs.customerName || '').trim(),
+      email: (attrs.email || '').trim(),
     }
   }
 

@@ -39,12 +39,68 @@
           <div class="text-right">
             <p class="text-2xl font-bold text-white">${{ order.amountTotal.toFixed(2) }}</p>
             <p class="text-dark-400 text-xs mt-0.5">{{ order.currency?.toUpperCase() }}</p>
-            <div class="mt-2">
-              <span v-if="order.inventoryAdjusted" class="text-xs text-green-400 bg-green-400/10 border border-green-400/20 px-2.5 py-1 rounded-full">Inventory Adjusted</span>
+            <div class="mt-2 flex flex-col items-end gap-1">
+              <span v-if="order.inventoryCommitted || order.inventoryAdjusted" class="text-xs text-green-400 bg-green-400/10 border border-green-400/20 px-2.5 py-1 rounded-full">Inventory Committed</span>
               <span v-else class="text-xs text-dark-500 bg-dark-800 border border-dark-700 px-2.5 py-1 rounded-full">Inventory Not Adjusted</span>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ── Payment & Shipping Commerce ───────────────────────── -->
+      <div class="bg-dark-900 border border-dark-700 rounded-xl p-5">
+        <h2 class="text-xs font-semibold text-dark-400 uppercase tracking-wider mb-4">Payment & Shipping</h2>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2.5 text-sm">
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Order number</dt>
+            <dd class="text-white font-mono text-xs">{{ order.orderNumber || '—' }}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Payment provider</dt>
+            <dd class="text-white">{{ order.paymentProvider || '—' }}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Payment method</dt>
+            <dd class="text-white">{{ order.paymentMethod || '—' }}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Payment status</dt>
+            <dd class="text-white">{{ order.paymentStatus || '—' }}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Moov transfer</dt>
+            <dd class="text-white font-mono text-xs break-all">{{ order.moovTransferId || '—' }}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Paid at</dt>
+            <dd class="text-white">{{ order.paidAt ? formatDate(order.paidAt) : '—' }}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Shipping status</dt>
+            <dd class="text-white">{{ order.shippingStatus || '—' }}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Carrier / service</dt>
+            <dd class="text-white">
+              <template v-if="order.shippingCarrier || order.shippingService">
+                {{ order.shippingCarrier }}{{ order.shippingCarrier && order.shippingService ? ' — ' : '' }}{{ order.shippingService }}
+              </template>
+              <template v-else>—</template>
+            </dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Shipping (cents)</dt>
+            <dd class="text-white">{{ order.shippingCostCents ?? '—' }}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Total (cents)</dt>
+            <dd class="text-white">{{ order.totalCents ?? '—' }}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="text-dark-500 w-36 flex-shrink-0">Inventory committed</dt>
+            <dd class="text-white">{{ order.inventoryCommitted ? 'Yes' : 'No' }}</dd>
+          </div>
+        </dl>
       </div>
 
       <!-- ── Customer ───────────────────────────────────────────── -->
