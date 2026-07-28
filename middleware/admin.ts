@@ -1,32 +1,34 @@
 /**
- * Admin Route Protection Middleware
- * 
- * MVP Implementation: Uses a simple localStorage flag for demo purposes.
- * 
- * TODO: For production, implement proper authentication:
- * 1. Add Strapi users-permissions plugin authentication
- * 2. Check user role (admin/owner) from JWT token
- * 3. Validate session server-side
- * 
- * Current behavior:
- * - Checks for 'adminAuthenticated' in localStorage
- * - If not authenticated, redirects to /admin/login
- * - For MVP testing, set localStorage.setItem('adminAuthenticated', 'true') in console
+ * Admin route guard.
+ * Client checks localStorage for UX; server APIs enforce httpOnly admin_session cookie.
  */
-export default defineNuxtRouteMiddleware((to) => {
-  // Skip middleware on server-side
+export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) return
 
-  // Check if user is authenticated as admin
-  const isAuthenticated = localStorage.getItem('adminAuthenticated') === 'true'
-
-  // If not authenticated and not already on login page, redirect to login
-  if (!isAuthenticated && to.path !== '/admin/login') {
-    return navigateTo('/admin/login')
+  if (to.path === '/admin/login') {
+    try {
+      const session = await $fetch<{ authenticated?: boolean }>('/api/admin/session', {
+        credentials: 'include',
+      })
+      if (session.authenticated) return navigateTo('/admin')
+    } catch {
+      // stay on login
+    }
+    return
   }
 
-  // If authenticated and on login page, redirect to admin dashboard
-  if (isAuthenticated && to.path === '/admin/login') {
-    return navigateTo('/admin')
+  try {
+    const session = await $fetch<{ authenticated?: boolean }>('/api/admin/session', {
+      credentials: 'include',
+    })
+    if (session.authenticated) {
+      localStorage.setItem('adminAuthenticated', 'true')
+      return
+    }
+  } catch {
+    // fall through
   }
+
+  localStorage.removeItem('adminAuthenticated')
+  return navigateTo('/admin/login')
 })

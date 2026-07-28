@@ -67,10 +67,18 @@
             {{ isPaid ? 'Payment confirmed' : 'Order status' }}
           </h1>
           <p class="text-dark-300 mt-2 text-sm sm:text-base">
-            <template v-if="isPaid">Thank you. Your order payment was received.</template>
+            <template v-if="isPaid">
+              Thank you for your order.
+            </template>
             <template v-else>
               Payment is processing. Your order was submitted and is waiting for confirmation from Moov.
             </template>
+          </p>
+          <p
+            v-if="isPaid"
+            class="text-dark-400 mt-2 text-sm leading-relaxed"
+          >
+            Your order has been received. A receipt has been emailed to the address provided at checkout.
           </p>
         </div>
 
@@ -83,7 +91,7 @@
 
         <div class="space-y-3 text-sm mb-6">
           <div class="flex justify-between gap-4">
-            <span class="text-dark-400">Order</span>
+            <span class="text-dark-400">Order number</span>
             <span class="text-white font-mono">{{ orderNumber || '—' }}</span>
           </div>
           <div class="flex justify-between gap-4">

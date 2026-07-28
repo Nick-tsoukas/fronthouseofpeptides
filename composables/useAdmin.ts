@@ -1,27 +1,19 @@
 /**
- * Admin API Composable
- * 
- * Provides authenticated API calls to Strapi for admin operations.
- * All requests go through Nuxt server routes to keep the Strapi token secure.
+ * Admin helpers — all data calls go through Nuxt server routes.
  */
-
 export function useAdmin() {
-  const config = useRuntimeConfig()
-  const strapiUrl = config.public.strapiUrl
-
-  /**
-   * Logout admin user
-   */
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await $fetch('/api/admin/logout', { method: 'POST', credentials: 'include' })
+    } catch {
+      // ignore
+    }
     if (import.meta.client) {
       localStorage.removeItem('adminAuthenticated')
       navigateTo('/admin/login')
     }
   }
 
-  /**
-   * Check if admin is authenticated
-   */
   const isAuthenticated = () => {
     if (import.meta.client) {
       return localStorage.getItem('adminAuthenticated') === 'true'
@@ -30,7 +22,6 @@ export function useAdmin() {
   }
 
   return {
-    strapiUrl,
     logout,
     isAuthenticated,
   }

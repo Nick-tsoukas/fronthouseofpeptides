@@ -305,6 +305,7 @@ const handleSubmit = async () => {
   try {
     const response = await $fetch<{ data: { id: number } }>('/api/admin/products', {
       method: 'POST',
+      credentials: 'include',
       body: {
         name: form.value.name,
         slug: form.value.slug || slugify(form.value.name),

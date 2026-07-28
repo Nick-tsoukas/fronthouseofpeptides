@@ -2,6 +2,7 @@
  * POST /api/admin/products
  * Create a new product with variants
  */
+import { requireAdminAuth } from '~/server/utils/adminAuth'
 
 interface VariantInput {
   name: string
@@ -23,7 +24,8 @@ interface ProductInput {
 }
 
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig()
+  const config = useRuntimeConfig(event)
+  requireAdminAuth(event, config.ownerSessionSecret as string)
   const strapiUrl = config.public.strapiUrl
   const strapiToken = config.strapiToken
   const body = await readBody<ProductInput>(event)

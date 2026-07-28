@@ -1,23 +1,35 @@
 <template>
   <div class="p-6 lg:p-8">
-    <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
         <h1 class="text-2xl font-bold text-white">Products</h1>
-        <p class="text-dark-400 mt-1">Manage your product catalog</p>
+        <p class="text-dark-400 mt-1">Manage catalog and inventory</p>
       </div>
-      <NuxtLink 
-        to="/admin/products/new"
-        class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-medium rounded-lg transition-colors"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
-        Add Product
-      </NuxtLink>
+      <div class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 border border-dark-600 text-white font-medium rounded-lg transition-colors"
+          @click="openManualSale()"
+        >
+          Record manual sale
+        </button>
+        <NuxtLink
+          to="/admin/products/new"
+          class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-medium rounded-lg transition-colors"
+        >
+          Add Product
+        </NuxtLink>
+      </div>
     </div>
 
-    <!-- Loading State -->
+    <div
+      v-if="toast"
+      class="mb-4 rounded-lg px-4 py-3 text-sm"
+      :class="toast.type === 'success' ? 'bg-green-500/10 border border-green-500/30 text-green-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'"
+    >
+      {{ toast.message }}
+    </div>
+
     <div v-if="pending" class="space-y-4">
       <div v-for="i in 5" :key="i" class="bg-dark-900 rounded-xl border border-dark-700 p-6 animate-pulse">
         <div class="h-6 bg-dark-800 rounded w-1/3 mb-2"></div>
@@ -25,126 +37,223 @@
       </div>
     </div>
 
-    <!-- Empty State -->
-    <div v-else-if="products.length === 0" class="bg-dark-900 rounded-xl border border-dark-700 p-12 text-center">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-dark-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-      </svg>
-      <h2 class="text-xl font-semibold text-white mb-2">No products yet</h2>
-      <p class="text-dark-400 mb-6">Get started by adding your first product.</p>
-      <NuxtLink 
-        to="/admin/products/new"
-        class="inline-flex items-center gap-2 px-6 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-medium rounded-lg transition-colors"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
-        Add Product
-      </NuxtLink>
+    <div v-else-if="error" class="bg-red-500/10 border border-red-500/30 rounded-xl p-8 text-center">
+      <p class="text-red-400 mb-3">{{ error }}</p>
+      <NuxtLink to="/admin/login" class="text-cyan-400 text-sm underline">Sign in again</NuxtLink>
     </div>
 
-    <!-- Products Table -->
+    <div v-else-if="products.length === 0" class="bg-dark-900 rounded-xl border border-dark-700 p-12 text-center">
+      <h2 class="text-xl font-semibold text-white mb-2">No products yet</h2>
+      <NuxtLink to="/admin/products/new" class="text-cyan-400">Add Product</NuxtLink>
+    </div>
+
     <div v-else class="bg-dark-900 rounded-xl border border-dark-700 overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full">
+        <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-dark-700">
-              <th class="text-left px-6 py-4 text-dark-400 font-medium text-sm">Product</th>
-              <th class="text-left px-6 py-4 text-dark-400 font-medium text-sm">Variants</th>
-              <th class="text-left px-6 py-4 text-dark-400 font-medium text-sm">Price Range</th>
-              <th class="text-left px-6 py-4 text-dark-400 font-medium text-sm">Status</th>
-              <th class="text-right px-6 py-4 text-dark-400 font-medium text-sm">Actions</th>
+              <th class="text-left px-6 py-4 text-dark-400 font-medium">Product</th>
+              <th class="text-left px-6 py-4 text-dark-400 font-medium">Variants</th>
+              <th class="text-left px-6 py-4 text-dark-400 font-medium">Price Range</th>
+              <th class="text-left px-6 py-4 text-dark-400 font-medium">Inventory</th>
+              <th class="text-left px-6 py-4 text-dark-400 font-medium">Status</th>
+              <th class="text-right px-6 py-4 text-dark-400 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr 
-              v-for="product in products" 
-              :key="product.id"
-              class="border-b border-dark-700 last:border-0 hover:bg-dark-800/50 transition-colors"
-            >
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-3">
-                  <div 
-                    class="w-12 h-12 rounded-lg flex-shrink-0"
-                    :style="{ background: getGradient(product.id) }"
-                  ></div>
-                  <div>
-                    <p class="text-white font-medium">{{ product.attributes.name }}</p>
-                    <p class="text-dark-400 text-sm">{{ product.attributes.slug }}</p>
-                  </div>
-                </div>
-              </td>
-              <td class="px-6 py-4">
-                <span class="text-white">{{ product.attributes.variants?.data.length || 0 }}</span>
-              </td>
-              <td class="px-6 py-4">
-                <span class="text-white">{{ getPriceRange(product) }}</span>
-              </td>
-              <td class="px-6 py-4">
-                <span 
-                  :class="[
-                    'px-2 py-1 text-xs font-medium rounded',
-                    product.attributes.active 
-                      ? 'bg-green-500/10 text-green-400' 
-                      : 'bg-dark-600 text-dark-400'
-                  ]"
-                >
-                  {{ product.attributes.active ? 'Active' : 'Inactive' }}
-                </span>
-              </td>
-              <td class="px-6 py-4 text-right">
-                <div class="flex items-center justify-end gap-2">
-                  <NuxtLink 
-                    :to="`/admin/products/${product.id}`"
-                    class="p-2 text-dark-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
-                    title="Edit"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </NuxtLink>
-                  <button 
-                    @click="confirmDelete(product)"
-                    class="p-2 text-dark-400 hover:text-red-400 hover:bg-dark-700 rounded-lg transition-colors"
-                    title="Delete"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+            <template v-for="product in products" :key="product.id">
+              <tr class="border-b border-dark-700 hover:bg-dark-800/50 transition-colors">
+                <td class="px-6 py-4">
+                  <button type="button" class="text-left" @click="toggleExpand(product.id)">
+                    <p class="text-white font-medium">{{ product.name }}</p>
+                    <p class="text-dark-400 text-xs">{{ product.slug }}</p>
                   </button>
-                </div>
-              </td>
-            </tr>
+                </td>
+                <td class="px-6 py-4 text-white">{{ product.variantCount }}</td>
+                <td class="px-6 py-4 text-white">{{ priceRange(product) }}</td>
+                <td class="px-6 py-4">
+                  <span :class="inventorySummaryClass(product)">{{ inventorySummary(product) }}</span>
+                </td>
+                <td class="px-6 py-4">
+                  <span
+                    :class="product.active ? 'bg-green-500/10 text-green-400' : 'bg-dark-600 text-dark-400'"
+                    class="px-2 py-1 text-xs font-medium rounded"
+                  >
+                    {{ product.active ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <div class="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      class="px-2.5 py-1.5 text-xs bg-dark-700 hover:bg-dark-600 text-white rounded-lg"
+                      @click="toggleExpand(product.id)"
+                    >
+                      {{ expanded[product.id] ? 'Hide' : 'Stock' }}
+                    </button>
+                    <NuxtLink
+                      :to="`/admin/products/${product.id}`"
+                      class="px-2.5 py-1.5 text-xs bg-dark-700 hover:bg-dark-600 text-white rounded-lg"
+                    >
+                      Edit
+                    </NuxtLink>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="expanded[product.id]" class="bg-dark-950/60 border-b border-dark-700">
+                <td colspan="6" class="px-6 py-4">
+                  <div class="space-y-2">
+                    <div
+                      v-for="variant in product.variants"
+                      :key="variant.id"
+                      class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-dark-700 bg-dark-900 px-4 py-3"
+                    >
+                      <div>
+                        <p class="text-white font-medium">{{ variant.name }}</p>
+                        <p class="text-dark-400 text-xs">
+                          <span v-if="variant.sku">SKU {{ variant.sku }} · </span>
+                          ${{ Number(variant.price).toFixed(2) }}
+                        </p>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <span :class="stockClass(variant.inventory)">{{ stockLabel(variant.inventory) }}</span>
+                        <button
+                          type="button"
+                          class="px-3 py-1.5 text-xs bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 rounded-lg"
+                          @click="openAdjust(product, variant)"
+                        >
+                          Adjust stock
+                        </button>
+                        <button
+                          type="button"
+                          class="px-3 py-1.5 text-xs bg-dark-700 hover:bg-dark-600 text-white rounded-lg"
+                          @click="openManualSale(product, variant)"
+                        >
+                          Manual sale
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div 
-      v-if="deleteModal.show" 
-      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      @click.self="deleteModal.show = false"
+    <!-- Adjust stock modal -->
+    <div
+      v-if="adjustModal.show"
+      class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      @click.self="adjustModal.show = false"
     >
-      <div class="bg-dark-900 rounded-xl border border-dark-700 p-6 max-w-md w-full">
-        <h3 class="text-lg font-semibold text-white mb-2">Delete Product</h3>
-        <p class="text-dark-400 mb-6">
-          Are you sure you want to delete <strong class="text-white">{{ deleteModal.product?.attributes.name }}</strong>? 
-          This action cannot be undone.
+      <div class="bg-dark-900 border border-dark-700 rounded-xl p-6 w-full max-w-md">
+        <h3 class="text-lg font-semibold text-white mb-1">Adjust stock</h3>
+        <p class="text-dark-400 text-sm mb-4">
+          {{ adjustModal.productName }} — {{ adjustModal.variantName }}
         </p>
-        <div class="flex gap-3">
-          <button 
-            @click="deleteModal.show = false"
-            class="flex-1 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-white font-medium rounded-lg transition-colors"
+        <p class="text-sm text-dark-300 mb-4">Current stock: <strong class="text-white">{{ adjustModal.currentStock }}</strong></p>
+
+        <div class="space-y-3">
+          <label class="block text-sm text-dark-300">
+            Adjustment type
+            <select v-model="adjustModal.adjustmentType" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white">
+              <option value="add">Add stock</option>
+              <option value="remove">Remove stock</option>
+              <option value="set">Set exact stock</option>
+            </select>
+          </label>
+          <label class="block text-sm text-dark-300">
+            Quantity
+            <input v-model.number="adjustModal.quantity" type="number" min="0" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white" />
+          </label>
+          <label class="block text-sm text-dark-300">
+            Reason
+            <select v-model="adjustModal.reason" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white">
+              <option v-for="r in reasons" :key="r" :value="r">{{ r }}</option>
+            </select>
+          </label>
+          <label class="block text-sm text-dark-300">
+            Note (optional)
+            <textarea v-model="adjustModal.note" rows="2" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white resize-none" />
+          </label>
+        </div>
+
+        <p v-if="adjustModal.error" class="mt-3 text-red-400 text-sm">{{ adjustModal.error }}</p>
+
+        <div class="mt-5 flex gap-3">
+          <button type="button" class="flex-1 px-4 py-2 bg-dark-700 text-white rounded-lg" @click="adjustModal.show = false">Cancel</button>
+          <button
+            type="button"
+            class="flex-1 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white rounded-lg"
+            :disabled="adjustModal.loading"
+            @click="confirmAdjust"
           >
-            Cancel
+            {{ adjustModal.loading ? 'Saving…' : 'Confirm' }}
           </button>
-          <button 
-            @click="deleteProduct"
-            :disabled="deleteModal.loading"
-            class="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-dark-700 text-white font-medium rounded-lg transition-colors"
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual sale modal -->
+    <div
+      v-if="saleModal.show"
+      class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      @click.self="saleModal.show = false"
+    >
+      <div class="bg-dark-900 border border-dark-700 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <h3 class="text-lg font-semibold text-white mb-4">Record manual sale</h3>
+
+        <div class="space-y-3">
+          <label class="block text-sm text-dark-300">
+            Product / variant
+            <select v-model="saleModal.variantId" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white">
+              <option disabled :value="0">Select variant</option>
+              <optgroup v-for="p in products" :key="p.id" :label="p.name">
+                <option v-for="v in p.variants" :key="v.id" :value="v.id">
+                  {{ v.name }} ({{ stockLabel(v.inventory) }})
+                </option>
+              </optgroup>
+            </select>
+          </label>
+          <label class="block text-sm text-dark-300">
+            Quantity
+            <input v-model.number="saleModal.quantity" type="number" min="1" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white" />
+          </label>
+          <label class="block text-sm text-dark-300">
+            Customer name (optional)
+            <input v-model="saleModal.customerName" type="text" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white" />
+          </label>
+          <label class="block text-sm text-dark-300">
+            Customer email (optional)
+            <input v-model="saleModal.customerEmail" type="email" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white" />
+          </label>
+          <label class="block text-sm text-dark-300">
+            Payment method
+            <select v-model="saleModal.paymentMethod" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white">
+              <option value="cash">Cash</option>
+              <option value="external">External</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label class="block text-sm text-dark-300">
+            Note
+            <textarea v-model="saleModal.note" rows="2" class="mt-1 w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white resize-none" />
+          </label>
+        </div>
+
+        <p v-if="saleModal.error" class="mt-3 text-red-400 text-sm">{{ saleModal.error }}</p>
+
+        <div class="mt-5 flex gap-3">
+          <button type="button" class="flex-1 px-4 py-2 bg-dark-700 text-white rounded-lg" @click="saleModal.show = false">Cancel</button>
+          <button
+            type="button"
+            class="flex-1 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white rounded-lg"
+            :disabled="saleModal.loading"
+            @click="confirmManualSale"
           >
-            {{ deleteModal.loading ? 'Deleting...' : 'Delete' }}
+            {{ saleModal.loading ? 'Saving…' : 'Confirm sale' }}
           </button>
         </div>
       </div>
@@ -153,78 +262,229 @@
 </template>
 
 <script setup lang="ts">
-import type { Product, StrapiResponse } from '~/types'
-
 definePageMeta({
   layout: 'admin',
   middleware: 'admin',
 })
 
-const config = useRuntimeConfig()
+const reasons = [
+  'New inventory',
+  'Manual/offline sale',
+  'Damaged/lost',
+  'Correction',
+  'Return/restock',
+  'Other',
+]
 
-const products = ref<Product[]>([])
+const products = ref<any[]>([])
 const pending = ref(true)
+const error = ref('')
+const expanded = ref<Record<number, boolean>>({})
+const toast = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 
-const deleteModal = ref({
+const adjustModal = reactive({
   show: false,
-  product: null as Product | null,
   loading: false,
+  error: '',
+  variantId: 0,
+  productName: '',
+  variantName: '',
+  currentStock: 0,
+  adjustmentType: 'add' as 'add' | 'remove' | 'set',
+  quantity: 1,
+  reason: 'New inventory',
+  note: '',
 })
 
-const getGradient = (productId: number) => {
-  const hue1 = (productId * 47) % 360
-  const hue2 = (hue1 + 40) % 360
-  return `linear-gradient(135deg, hsl(${hue1}, 70%, 30%) 0%, hsl(${hue2}, 60%, 20%) 100%)`
+const saleModal = reactive({
+  show: false,
+  loading: false,
+  error: '',
+  variantId: 0,
+  quantity: 1,
+  customerName: '',
+  customerEmail: '',
+  paymentMethod: 'cash' as 'cash' | 'external' | 'other',
+  note: '',
+})
+
+function showToast(type: 'success' | 'error', message: string) {
+  toast.value = { type, message }
+  setTimeout(() => {
+    toast.value = null
+  }, 4000)
 }
 
-const getPriceRange = (product: Product) => {
-  const variants = product.attributes.variants?.data || []
-  if (variants.length === 0) return 'N/A'
-  
-  const prices = variants.map(v => v.attributes.price)
+function priceRange(product: any) {
+  const variants = product.variants || []
+  if (!variants.length) return 'N/A'
+  const prices = variants.map((v: any) => Number(v.price) || 0)
   const min = Math.min(...prices)
   const max = Math.max(...prices)
-  
   if (min === max) return `$${min.toFixed(2)}`
   return `$${min.toFixed(2)} - $${max.toFixed(2)}`
 }
 
-const fetchProducts = async () => {
+function stockLabel(inventory: number | null) {
+  if (inventory === null || inventory === undefined) return 'Not tracked'
+  if (inventory <= 0) return 'Out of stock'
+  if (inventory <= 5) return `Low stock (${inventory})`
+  return `${inventory} in stock`
+}
+
+function stockClass(inventory: number | null) {
+  if (inventory === null || inventory === undefined) return 'text-dark-400 text-xs'
+  if (inventory <= 0) return 'text-red-400 text-xs font-medium'
+  if (inventory <= 5) return 'text-amber-400 text-xs font-medium'
+  return 'text-green-400 text-xs font-medium'
+}
+
+function inventorySummary(product: any) {
+  if (product.hasUntracked && !(product.variants || []).some((v: any) => v.inventory !== null)) {
+    return 'Not tracked'
+  }
+  const count = product.variantCount || 0
+  const total = product.totalStock || 0
+  if (count <= 1) {
+    const inv = product.variants?.[0]?.inventory
+    if (inv === null || inv === undefined) return 'Not tracked'
+    if (inv <= 0) return 'Out of stock'
+    return `${inv} in stock`
+  }
+  if (total <= 0 && !product.hasUntracked) return 'Out of stock'
+  return `${total} total`
+}
+
+function inventorySummaryClass(product: any) {
+  const text = inventorySummary(product)
+  if (text === 'Out of stock') return 'text-red-400 font-medium'
+  if (text.startsWith('Low') || (product.totalStock > 0 && product.totalStock <= 5)) return 'text-amber-400 font-medium'
+  if (text === 'Not tracked') return 'text-dark-400'
+  return 'text-green-400 font-medium'
+}
+
+function toggleExpand(id: number) {
+  expanded.value[id] = !expanded.value[id]
+}
+
+function openAdjust(product: any, variant: any) {
+  adjustModal.show = true
+  adjustModal.error = ''
+  adjustModal.variantId = variant.id
+  adjustModal.productName = product.name
+  adjustModal.variantName = variant.name
+  adjustModal.currentStock = variant.inventory ?? 0
+  adjustModal.adjustmentType = 'add'
+  adjustModal.quantity = 1
+  adjustModal.reason = 'New inventory'
+  adjustModal.note = ''
+}
+
+function openManualSale(product?: any, variant?: any) {
+  saleModal.show = true
+  saleModal.error = ''
+  saleModal.variantId = variant?.id || 0
+  saleModal.quantity = 1
+  saleModal.customerName = ''
+  saleModal.customerEmail = ''
+  saleModal.paymentMethod = 'cash'
+  saleModal.note = ''
+  if (product?.id) expanded.value[product.id] = true
+}
+
+async function fetchProducts() {
   pending.value = true
+  error.value = ''
   try {
-    const response = await $fetch<StrapiResponse<Product[]>>(
-      `${config.public.strapiUrl}/api/products?populate=variants&sort=name:asc`
-    )
-    products.value = response.data || []
-  } catch (error) {
-    console.error('Error fetching products:', error)
+    const res = await $fetch<{ products: any[] }>('/api/admin/products', { credentials: 'include' })
+    products.value = res.products || []
+  } catch (err: any) {
+    error.value = err.data?.message || err.message || 'Could not load products.'
+    products.value = []
   } finally {
     pending.value = false
   }
 }
 
-const confirmDelete = (product: Product) => {
-  deleteModal.value.product = product
-  deleteModal.value.show = true
+async function confirmAdjust() {
+  adjustModal.error = ''
+  const qty = Number(adjustModal.quantity)
+  if (!Number.isInteger(qty) || qty < 0 || (adjustModal.adjustmentType !== 'set' && qty <= 0)) {
+    adjustModal.error = 'Enter a valid quantity.'
+    return
+  }
+  if (adjustModal.adjustmentType === 'remove' && qty > adjustModal.currentStock) {
+    adjustModal.error = `Cannot remove more than current stock (${adjustModal.currentStock}).`
+    return
+  }
+
+  const preview =
+    adjustModal.adjustmentType === 'add'
+      ? adjustModal.currentStock + qty
+      : adjustModal.adjustmentType === 'remove'
+        ? adjustModal.currentStock - qty
+        : qty
+
+  if (!confirm(`Update stock from ${adjustModal.currentStock} to ${preview}?`)) return
+
+  adjustModal.loading = true
+  try {
+    await $fetch('/api/admin/inventory/adjust', {
+      method: 'POST',
+      credentials: 'include',
+      body: {
+        variantId: adjustModal.variantId,
+        adjustmentType: adjustModal.adjustmentType,
+        quantity: qty,
+        reason: adjustModal.reason,
+        note: adjustModal.note || undefined,
+      },
+    })
+    adjustModal.show = false
+    showToast('success', 'Inventory updated.')
+    await fetchProducts()
+  } catch (err: any) {
+    adjustModal.error = err.data?.message || err.message || 'Could not update inventory.'
+    showToast('error', adjustModal.error)
+  } finally {
+    adjustModal.loading = false
+  }
 }
 
-const deleteProduct = async () => {
-  if (!deleteModal.value.product) return
-  
-  deleteModal.value.loading = true
+async function confirmManualSale() {
+  saleModal.error = ''
+  if (!saleModal.variantId) {
+    saleModal.error = 'Select a variant.'
+    return
+  }
+  if (!Number.isInteger(saleModal.quantity) || saleModal.quantity <= 0) {
+    saleModal.error = 'Quantity must be a positive integer.'
+    return
+  }
+  if (!confirm(`Record manual sale of ${saleModal.quantity} unit(s)? This decreases inventory.`)) return
+
+  saleModal.loading = true
   try {
-    await $fetch(`/api/admin/products/${deleteModal.value.product.id}`, {
-      method: 'DELETE',
+    await $fetch('/api/admin/manual-sale', {
+      method: 'POST',
+      credentials: 'include',
+      body: {
+        variantId: saleModal.variantId,
+        quantity: saleModal.quantity,
+        customerName: saleModal.customerName || undefined,
+        customerEmail: saleModal.customerEmail || undefined,
+        paymentMethod: saleModal.paymentMethod,
+        note: saleModal.note || undefined,
+      },
     })
-    
-    // Remove from local list
-    products.value = products.value.filter(p => p.id !== deleteModal.value.product?.id)
-    deleteModal.value.show = false
-  } catch (error) {
-    console.error('Error deleting product:', error)
-    alert('Failed to delete product. Check console for details.')
+    saleModal.show = false
+    showToast('success', 'Manual sale recorded. Inventory updated.')
+    await fetchProducts()
+  } catch (err: any) {
+    saleModal.error = err.data?.message || err.message || 'Could not record sale.'
+    showToast('error', saleModal.error)
   } finally {
-    deleteModal.value.loading = false
+    saleModal.loading = false
   }
 }
 

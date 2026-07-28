@@ -9,6 +9,7 @@ import {
   type MoovConfig,
 } from '~/server/utils/moov'
 import { sendPaidOrderEmails } from '~/server/utils/sendOrderEmails'
+import { createInventoryAdjustmentLog } from '~/server/utils/inventory-log'
 
 export async function commitInventoryOnce(
   strapiUrl: string,
@@ -28,7 +29,8 @@ export async function commitInventoryOnce(
     if (inventory === null || inventory === undefined) continue
 
     anyTracked = true
-    const newInventory = Math.max(0, Number(inventory) - quantity)
+    const previousInventory = Number(inventory)
+    const newInventory = Math.max(0, previousInventory - quantity)
     await $fetch(`${strapiUrl}/api/variants/${variant.id}`, {
       method: 'PUT',
       headers: authHeaders,
@@ -38,8 +40,25 @@ export async function commitInventoryOnce(
     safeLog('Inventory decremented', {
       orderId,
       variantId: variant.id,
-      from: inventory,
+      from: previousInventory,
       to: newInventory,
+    })
+
+    const productId = variant.attributes?.product?.data?.id || null
+    await createInventoryAdjustmentLog({
+      strapiUrl,
+      authHeaders,
+      variantId: variant.id,
+      productId,
+      adjustmentType: 'remove',
+      quantity,
+      previousInventory,
+      newInventory,
+      reason: 'Online order',
+      note: `Order #${orderId}`,
+      source: 'online_order',
+      relatedOrderId: orderId,
+      createdByAdmin: null,
     })
   }
 
@@ -227,8 +246,12 @@ export async function applyVerifiedTransferToOrder(opts: {
   if (mappedPaymentStatus === 'paid' && !alreadyPaid) {
     updateData.paymentStatus = 'paid'
     updateData.paidAt = new Date().toISOString()
-    updateData.paymentProvider = 'moov'
-    updateData.paymentMethod = 'card'
+    updateData.paymentProvider = attrs.paymentProvider || 'moov'
+    updateData.paymentMethod = attrs.paymentMethod || 'card'
+    // Keep commerce order status out of "awaiting_payment" once paid
+    if (attrs.status === 'awaiting_payment') {
+      updateData.status = 'approved'
+    }
     shouldSendEmails = sendEmailsOnPaid
 
     if (!alreadyCommitted) {

@@ -296,7 +296,8 @@ const fetchProduct = async () => {
   pending.value = true
   try {
     const response = await $fetch<StrapiResponse<Product>>(
-      `${config.public.strapiUrl}/api/products/${productId.value}?populate=variants`
+      `/api/admin/products/${productId.value}`,
+      { credentials: 'include' }
     )
     product.value = response.data
 
@@ -373,6 +374,7 @@ const handleSubmit = async () => {
 
     await $fetch(`/api/admin/products/${productId.value}`, {
       method: 'PUT',
+      credentials: 'include',
       body: {
         name: form.value.name,
         slug: form.value.slug,

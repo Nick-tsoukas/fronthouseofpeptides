@@ -2,8 +2,11 @@
  * GET /api/admin/products/:id
  * Fetch a single product with variants
  */
+import { requireAdminAuth } from '~/server/utils/adminAuth'
+
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig()
+  const config = useRuntimeConfig(event)
+  requireAdminAuth(event, config.ownerSessionSecret as string)
   const strapiUrl = config.public.strapiUrl
   const strapiToken = config.strapiToken
   const id = getRouterParam(event, 'id')
