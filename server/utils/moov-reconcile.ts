@@ -4,6 +4,7 @@ import {
   getAccountPaymentMethods,
   findMoovWalletPaymentMethod,
   mapMoovTransferToPaymentStatus,
+  extractCardDetailsStatus,
   safeLog,
   type MoovConfig,
 } from '~/server/utils/moov'
@@ -67,6 +68,7 @@ export interface TransferVerification {
   reason?: string
   transfer?: any
   transferStatus?: string
+  cardDetailsStatus?: string | null
   mappedPaymentStatus?: 'processing' | 'paid' | 'failed' | 'refunded' | null
   amountMatches?: boolean
   sourceMatches?: boolean
@@ -94,9 +96,16 @@ export async function verifyMoovTransferAgainstOrder(
   const destinationPm =
     transfer?.destination?.paymentMethodID || transfer?.destination?.paymentMethodId
   const verifiedStatus = String(transfer?.status || '').toLowerCase()
+  const cardDetailsStatus = extractCardDetailsStatus(transfer)
 
   if (verifiedTransferId !== attrs.moovTransferId) {
-    return { ok: false, reason: 'transfer_id_mismatch', transfer, transferStatus: verifiedStatus }
+    return {
+      ok: false,
+      reason: 'transfer_id_mismatch',
+      transfer,
+      transferStatus: verifiedStatus,
+      cardDetailsStatus,
+    }
   }
 
   const amountMatches = amountValue === Number(attrs.totalCents)
@@ -106,6 +115,7 @@ export async function verifyMoovTransferAgainstOrder(
       reason: 'amount_mismatch',
       transfer,
       transferStatus: verifiedStatus,
+      cardDetailsStatus,
       amountMatches: false,
       currency,
     }
@@ -117,6 +127,7 @@ export async function verifyMoovTransferAgainstOrder(
       reason: 'currency_mismatch',
       transfer,
       transferStatus: verifiedStatus,
+      cardDetailsStatus,
       amountMatches: true,
       currency,
     }
@@ -129,6 +140,7 @@ export async function verifyMoovTransferAgainstOrder(
       reason: 'source_mismatch',
       transfer,
       transferStatus: verifiedStatus,
+      cardDetailsStatus,
       amountMatches: true,
       sourceMatches: false,
       currency,
@@ -146,6 +158,7 @@ export async function verifyMoovTransferAgainstOrder(
         reason: 'destination_mismatch',
         transfer,
         transferStatus: verifiedStatus,
+        cardDetailsStatus,
         amountMatches: true,
         sourceMatches: true,
         destinationMatches: false,
@@ -161,7 +174,8 @@ export async function verifyMoovTransferAgainstOrder(
     ok: true,
     transfer,
     transferStatus: verifiedStatus,
-    mappedPaymentStatus: mapMoovTransferToPaymentStatus(verifiedStatus),
+    cardDetailsStatus,
+    mappedPaymentStatus: mapMoovTransferToPaymentStatus(verifiedStatus, cardDetailsStatus),
     amountMatches: true,
     sourceMatches: true,
     destinationMatches,
@@ -340,6 +354,7 @@ export async function reconcileProcessingOrder(opts: {
   inventoryCommitted: boolean
   paidAt: string | null
   transferStatus: string | null
+  cardDetailsStatus: string | null
 }> {
   const { event, orderId, attrs, strapiUrl, authHeaders } = opts
   const currentStatus = attrs.paymentStatus || 'pending'
@@ -350,6 +365,7 @@ export async function reconcileProcessingOrder(opts: {
       inventoryCommitted: Boolean(attrs.inventoryCommitted),
       paidAt: attrs.paidAt || null,
       transferStatus: null,
+      cardDetailsStatus: null,
     }
   }
 
@@ -360,6 +376,7 @@ export async function reconcileProcessingOrder(opts: {
       inventoryCommitted: Boolean(attrs.inventoryCommitted),
       paidAt: attrs.paidAt || null,
       transferStatus: null,
+      cardDetailsStatus: null,
     }
   }
 
@@ -375,12 +392,14 @@ export async function reconcileProcessingOrder(opts: {
       orderNumber: attrs.orderNumber,
       reason: verified.reason || 'unmapped',
       transferStatus: verified.transferStatus || null,
+      cardDetailsStatus: verified.cardDetailsStatus || null,
     })
     return {
       paymentStatus: currentStatus,
       inventoryCommitted: Boolean(attrs.inventoryCommitted),
       paidAt: attrs.paidAt || null,
       transferStatus: verified.transferStatus || null,
+      cardDetailsStatus: verified.cardDetailsStatus || null,
     }
   }
 
@@ -394,6 +413,7 @@ export async function reconcileProcessingOrder(opts: {
       inventoryCommitted: Boolean(attrs.inventoryCommitted),
       paidAt: attrs.paidAt || null,
       transferStatus: verified.transferStatus || null,
+      cardDetailsStatus: verified.cardDetailsStatus || null,
     }
   }
 
@@ -411,11 +431,13 @@ export async function reconcileProcessingOrder(opts: {
     orderId,
     orderNumber: attrs.orderNumber,
     transferStatus: verified.transferStatus,
+    cardDetailsStatus: verified.cardDetailsStatus,
     paymentStatus: applied.paymentStatus,
   })
 
   return {
     ...applied,
     transferStatus: verified.transferStatus || null,
+    cardDetailsStatus: verified.cardDetailsStatus || null,
   }
 }

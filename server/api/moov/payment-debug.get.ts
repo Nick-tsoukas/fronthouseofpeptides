@@ -34,9 +34,11 @@ export default defineEventHandler(async (event: H3Event) => {
 
   const hasMoovTransferId = Boolean(attrs.moovTransferId)
   let transferStatus: string | null = null
+  let cardDetailsStatus: string | null = null
   let transferAmountMatchesOrder: boolean | null = null
   let sourceMatchesOrder: boolean | null = null
   let currency: string | null = null
+  let mappedPaymentStatus: string | null = null
 
   if (hasMoovTransferId) {
     const moovConfig = getMoovConfig(event)
@@ -47,6 +49,8 @@ export default defineEventHandler(async (event: H3Event) => {
         attrs.moovTransferId
       )
       transferStatus = verified.transferStatus || null
+      cardDetailsStatus = verified.cardDetailsStatus || null
+      mappedPaymentStatus = verified.mappedPaymentStatus || null
       transferAmountMatchesOrder =
         typeof verified.amountMatches === 'boolean' ? verified.amountMatches : null
       sourceMatchesOrder =
@@ -61,6 +65,8 @@ export default defineEventHandler(async (event: H3Event) => {
     orderPaymentStatus: attrs.paymentStatus || null,
     hasMoovTransferId,
     transferStatus,
+    cardDetailsStatus,
+    mappedPaymentStatus,
     transferAmountMatchesOrder,
     sourceMatchesOrder,
     currency,

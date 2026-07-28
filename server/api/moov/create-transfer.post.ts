@@ -8,8 +8,11 @@ import {
   isCardPaymentMethodAvailable,
   getMoovTransfer,
   createMoovTransfer,
+  mapMoovTransferToPaymentStatus,
+  extractCardDetailsStatus,
   safeLog,
 } from '~/server/utils/moov'
+import { applyVerifiedTransferToOrder } from '~/server/utils/moov-reconcile'
 import {
   getShippoConfig,
   shippoFetch,
@@ -340,8 +343,12 @@ export default defineEventHandler(async (event: H3Event) => {
     throw createError({ statusCode: 502, message: 'Payment provider did not return a transfer ID.' })
   }
 
+  const transferStatus = String(transfer?.status || '').toLowerCase()
+  const cardDetailsStatus = extractCardDetailsStatus(transfer)
+  const mappedFromCreate = mapMoovTransferToPaymentStatus(transferStatus, cardDetailsStatus)
+
   const now = new Date().toISOString()
-  const orderUpdate = {
+  const orderUpdate: Record<string, any> = {
     moovTransferId: transferId,
     paymentStatus: 'processing',
     paymentProvider: 'moov',
@@ -374,11 +381,39 @@ export default defineEventHandler(async (event: H3Event) => {
     }
   }
 
+  // If X-Wait-For already returned a confirmed card auth (or completed transfer),
+  // finalize immediately — do not leave the order stuck on processing for settlement.
+  let paymentStatus = 'processing'
+  if (mappedFromCreate === 'paid' || mappedFromCreate === 'failed') {
+    try {
+      const applied = await applyVerifiedTransferToOrder({
+        event,
+        strapiUrl,
+        authHeaders,
+        orderId,
+        attrs: {
+          ...attrs,
+          moovTransferId: transferId,
+          paymentStatus: 'processing',
+        },
+        mappedPaymentStatus: mappedFromCreate,
+        sendEmailsOnPaid: true,
+      })
+      paymentStatus = applied.paymentStatus
+    } catch (err: any) {
+      console.error('Immediate Moov finalize after create failed:', err?.message || err)
+      // Keep processing; status poll / webhook can still reconcile.
+      paymentStatus = 'processing'
+    }
+  }
+
   checkoutTrace('create-transfer:created', {
     orderId,
     orderNumber: attrs.orderNumber,
     strapiHost,
-    paymentStatus: 'processing',
+    paymentStatus,
+    transferStatus: transferStatus || null,
+    cardDetailsStatus: cardDetailsStatus || null,
     hasMoovCardId: true,
     hasMoovPaymentMethodId: true,
     hasMoovTransferId: true,
@@ -389,13 +424,15 @@ export default defineEventHandler(async (event: H3Event) => {
     orderNumber: attrs.orderNumber,
     strapiHost,
     transferId,
-    paymentStatus: 'processing',
+    paymentStatus,
+    transferStatus: transferStatus || null,
+    cardDetailsStatus: cardDetailsStatus || null,
   })
 
   return {
     ok: true,
     orderNumber: attrs.orderNumber,
-    paymentStatus: 'processing',
+    paymentStatus,
     transferCreated: true,
   }
 })

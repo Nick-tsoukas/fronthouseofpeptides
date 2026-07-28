@@ -866,6 +866,21 @@ async function runCreateTransfer() {
 
   paymentStatus.value = transfer.paymentStatus || 'processing'
   cardLinkedOnServer.value = true
+
+  if (transfer.paymentStatus === 'paid') {
+    paymentStage.value = 'paid'
+    stopPolling()
+    await router.push(`/checkout/success?orderId=${orderId}`)
+    return
+  }
+
+  if (transfer.paymentStatus === 'failed') {
+    paymentStage.value = 'ready'
+    cardError.value = 'Payment failed. Please try another card or contact support.'
+    stopPolling()
+    return
+  }
+
   startPaymentStatusPolling()
 }
 

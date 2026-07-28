@@ -229,6 +229,7 @@ export default defineEventHandler(async (event: H3Event) => {
       eventType,
       transferId,
       status: verified.transferStatus,
+      cardDetailsStatus: verified.cardDetailsStatus,
       orderNumber: attrs.orderNumber,
       strapiHost,
       paymentStatus: applied.paymentStatus,

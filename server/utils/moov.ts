@@ -299,15 +299,51 @@ export function findMoovWalletPaymentMethod(methods: any[]): any | null {
   return preferred || null
 }
 
+/**
+ * Map Moov transfer (+ optional card rail) status to our order paymentStatus.
+ *
+ * Important: card-to-wallet transfers often stay transfer.status=`pending` until
+ * funds hit the merchant wallet (typically next banking day). Successful card
+ * authorization is reflected in source.cardDetails.status=`confirmed`|`settled`.
+ * Ecommerce checkout must treat confirmed auth as paid — not wait for wallet
+ * settlement — otherwise the UI hangs for ~1 business day.
+ */
 export function mapMoovTransferToPaymentStatus(
-  transferStatus: string
+  transferStatus: string,
+  cardDetailsStatus?: string | null
 ): 'processing' | 'paid' | 'failed' | 'refunded' | null {
   const status = String(transferStatus || '').toLowerCase()
-  if (status === 'pending' || status === 'queued' || status === 'processing') return 'processing'
-  if (status === 'completed' || status === 'succeeded') return 'paid'
-  if (status === 'failed' || status === 'canceled' || status === 'cancelled') return 'failed'
+  const cardStatus = String(cardDetailsStatus || '').toLowerCase()
+
   if (status === 'reversed') return 'refunded'
+  if (status === 'failed' || status === 'canceled' || status === 'cancelled') return 'failed'
+  if (status === 'completed' || status === 'succeeded') return 'paid'
+
+  // Card rail authorization / settlement signals (transfer may still be pending)
+  if (cardStatus === 'failed' || cardStatus === 'canceled' || cardStatus === 'cancelled') {
+    return 'failed'
+  }
+  if (
+    cardStatus === 'confirmed' ||
+    cardStatus === 'settled' ||
+    cardStatus === 'completed'
+  ) {
+    return 'paid'
+  }
+
+  if (status === 'pending' || status === 'queued' || status === 'processing' || status === 'created') {
+    return 'processing'
+  }
+
   return null
+}
+
+export function extractCardDetailsStatus(transfer: any): string | null {
+  const raw =
+    transfer?.source?.cardDetails?.status ||
+    transfer?.cardDetails?.status ||
+    null
+  return raw ? String(raw).toLowerCase() : null
 }
 
 export function safeLog(label: string, data: Record<string, unknown>): void {
