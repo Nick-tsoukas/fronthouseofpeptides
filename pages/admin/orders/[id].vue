@@ -162,14 +162,49 @@
           </div>
         </dl>
 
+        <dl v-if="order.labelPurchasedAt || order.shippedAt || order.trackingUrl" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-5">
+          <div v-if="order.labelPurchasedAt" class="flex gap-3">
+            <dt class="text-dark-500 w-40">Label purchased</dt>
+            <dd class="text-white">{{ formatDate(order.labelPurchasedAt) }}</dd>
+          </div>
+          <div v-if="order.shippedAt" class="flex gap-3">
+            <dt class="text-dark-500 w-40">Shipped at</dt>
+            <dd class="text-white">{{ formatDate(order.shippedAt) }}</dd>
+          </div>
+          <div v-if="order.trackingUrl" class="flex gap-3 sm:col-span-2">
+            <dt class="text-dark-500 w-40">Tracking URL</dt>
+            <dd class="text-cyan-300 text-xs break-all">
+              <a :href="order.trackingUrl" target="_blank" rel="noopener noreferrer" class="underline">
+                {{ order.trackingUrl }}
+              </a>
+            </dd>
+          </div>
+        </dl>
+
         <p v-if="order.labelErrorMessage" class="mb-4 text-sm text-red-400">{{ order.labelErrorMessage }}</p>
+
+        <p
+          v-if="!canBuyLabel && buyLabelBlockedReason"
+          class="mb-4 text-sm text-amber-300/90 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2"
+        >
+          Buy Shipping Label unavailable: {{ buyLabelBlockedReason }}
+        </p>
+
+        <div
+          v-if="labelActionError"
+          class="mb-4 rounded-lg px-4 py-3 text-sm bg-red-500/10 border border-red-500/30 text-red-300 space-y-1"
+        >
+          <p class="font-medium">Could not buy label: {{ labelActionError.message }}</p>
+          <p v-if="labelActionError.step" class="text-red-400/80 text-xs">Step: {{ labelActionError.step }}</p>
+          <p v-if="labelActionError.detail" class="text-red-400/70 text-xs break-words">{{ labelActionError.detail }}</p>
+        </div>
 
         <div class="flex flex-wrap gap-3">
           <button
             v-if="canBuyLabel"
             type="button"
-            class="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white text-sm font-semibold rounded-lg"
-            :disabled="actionLoading"
+            class="px-4 py-2.5 min-h-[44px] bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg"
+            :disabled="!!actionLoading"
             @click="buyLabel"
           >
             {{ actionLoading === 'buy' ? 'Purchasing…' : order.shippingStatus === 'label_failed' ? 'Retry Label Purchase' : 'Buy Shipping Label' }}
@@ -178,7 +213,7 @@
           <button
             v-if="order.shippingStatus === 'label_purchasing'"
             type="button"
-            class="px-4 py-2.5 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-lg"
+            class="px-4 py-2.5 min-h-[44px] bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-lg"
             :disabled="!!actionLoading"
             @click="refreshLabelStatus"
           >
@@ -190,7 +225,7 @@
             :href="order.shippingLabelUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="px-4 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-sm font-semibold rounded-lg"
+            class="inline-flex items-center px-4 py-2.5 min-h-[44px] bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-sm font-semibold rounded-lg"
           >
             Print Label
           </a>
@@ -200,7 +235,7 @@
             :href="order.trackingUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="px-4 py-2.5 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-lg"
+            class="inline-flex items-center px-4 py-2.5 min-h-[44px] bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-lg"
           >
             Open Tracking
           </a>
@@ -208,8 +243,8 @@
           <button
             v-if="canEmailTracking"
             type="button"
-            class="px-4 py-2.5 bg-dark-700 hover:bg-dark-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg"
-            :disabled="actionLoading"
+            class="px-4 py-2.5 min-h-[44px] bg-dark-700 hover:bg-dark-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg"
+            :disabled="!!actionLoading"
             @click="emailTracking"
           >
             {{ actionLoading === 'email' ? 'Sending…' : 'Email Tracking' }}
@@ -218,8 +253,8 @@
           <button
             v-if="canMarkShipped"
             type="button"
-            class="px-4 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-semibold rounded-lg"
-            :disabled="actionLoading"
+            class="px-4 py-2.5 min-h-[44px] bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white text-sm font-semibold rounded-lg"
+            :disabled="!!actionLoading"
             @click="markShipped"
           >
             {{ actionLoading === 'ship' ? 'Saving…' : 'Mark as Shipped' }}
@@ -257,6 +292,7 @@ const error = ref('')
 const order = ref<any>(null)
 const actionLoading = ref<'' | 'buy' | 'email' | 'ship'>('')
 const actionToast = ref<{ type: 'success' | 'error'; message: string } | null>(null)
+const labelActionError = ref<{ message: string; step?: string; detail?: string } | null>(null)
 
 const formatCents = (cents: number) => `$${((Number(cents) || 0) / 100).toFixed(2)}`
 const formatDate = (dateString: string | null) => {
@@ -277,14 +313,37 @@ function showToast(type: 'success' | 'error', message: string) {
   }, 5000)
 }
 
-const canBuyLabel = computed(() => {
+const hasShippingAddress = computed(() => {
   if (!order.value) return false
-  if (order.value.paymentStatus !== 'paid') return false
-  if (order.value.shippoTransactionId && order.value.shippingLabelUrl) return false
-  if (!order.value.shippoRateId) return false
-  if (['cancelled', 'refunded'].includes(order.value.paymentStatus) || order.value.status === 'cancelled') return false
-  return ['selected', 'ready_to_ship', 'label_failed'].includes(order.value.shippingStatus)
+  return Boolean(
+    order.value.shippingAddressLine1 &&
+      order.value.shippingCity &&
+      order.value.shippingState &&
+      order.value.shippingPostalCode
+  )
 })
+
+const buyLabelBlockedReason = computed(() => {
+  if (!order.value) return 'Order not loaded.'
+  if (order.value.paymentStatus !== 'paid') return 'payment is not paid yet.'
+  if (order.value.status === 'cancelled' || ['cancelled', 'refunded'].includes(order.value.paymentStatus)) {
+    return 'order is cancelled or refunded.'
+  }
+  if (order.value.shippoTransactionId && order.value.shippingLabelUrl) {
+    return 'a label was already purchased.'
+  }
+  if (order.value.shippingStatus === 'label_purchasing') {
+    return 'a label is already being generated — use Refresh Order.'
+  }
+  if (!order.value.shippoRateId) return 'no Shippo rate is selected on this order.'
+  if (!hasShippingAddress.value) return 'shipping address is incomplete.'
+  if (!['selected', 'ready_to_ship', 'label_failed'].includes(order.value.shippingStatus)) {
+    return `shipping status is "${order.value.shippingStatus}" (needs selected, ready_to_ship, or label_failed).`
+  }
+  return ''
+})
+
+const canBuyLabel = computed(() => !buyLabelBlockedReason.value)
 
 const canEmailTracking = computed(() => {
   if (!order.value) return false
@@ -303,6 +362,19 @@ const canMarkShipped = computed(() => {
     order.value.shippingStatus !== 'delivered'
   )
 })
+
+function extractLabelError(errOrRes: any): { message: string; step?: string; detail?: string } {
+  const body = errOrRes?.data && typeof errOrRes.data === 'object' ? errOrRes.data : errOrRes
+  const nested = body?.data && typeof body.data === 'object' ? body.data : null
+  const message =
+    body?.message ||
+    nested?.message ||
+    errOrRes?.message ||
+    'Label purchase failed.'
+  const step = body?.step || nested?.step
+  const detail = body?.detail || nested?.detail
+  return { message, step, detail }
+}
 
 const fulfillmentHint = computed(() => {
   if (!order.value) return ''
@@ -341,6 +413,8 @@ async function refreshOrder() {
 
 /** Re-check Shippo for an in-flight transaction (idempotent — does not buy a new label). */
 async function refreshLabelStatus() {
+  if (actionLoading.value) return
+  labelActionError.value = null
   actionLoading.value = 'buy'
   try {
     const res = await $fetch<any>(`/api/admin/orders/${orderId.value}/buy-label`, {
@@ -348,13 +422,21 @@ async function refreshLabelStatus() {
       credentials: 'include',
     })
     await refreshOrder()
+    if (res?.ok === false) {
+      const parsed = extractLabelError(res)
+      labelActionError.value = parsed
+      showToast('error', `Could not buy label: ${parsed.message}`)
+      return
+    }
     if (res.shippingStatus === 'label_purchased') {
-      showToast('success', 'Shipping label is ready.')
+      showToast('success', res.message || 'Shipping label is ready.')
     } else {
       showToast('success', res.message || 'Label is still being generated.')
     }
   } catch (err: any) {
-    showToast('error', err.data?.message || err.message || 'Could not refresh label status.')
+    const parsed = extractLabelError(err)
+    labelActionError.value = parsed
+    showToast('error', `Could not buy label: ${parsed.message}`)
     await refreshOrder().catch(() => {})
   } finally {
     actionLoading.value = ''
@@ -362,6 +444,8 @@ async function refreshLabelStatus() {
 }
 
 async function buyLabel() {
+  if (actionLoading.value) return
+  labelActionError.value = null
   actionLoading.value = 'buy'
   try {
     const res = await $fetch<any>(`/api/admin/orders/${orderId.value}/buy-label`, {
@@ -369,14 +453,45 @@ async function buyLabel() {
       credentials: 'include',
     })
     await refreshOrder()
+    if (res?.ok === false) {
+      const parsed = extractLabelError(res)
+      labelActionError.value = parsed
+      showToast('error', `Could not buy label: ${parsed.message}`)
+      // If Shippo succeeded but Strapi save failed, still surface label URL from response
+      if (res.shippingLabelUrl) {
+        order.value = {
+          ...order.value,
+          shippingLabelUrl: res.shippingLabelUrl,
+          trackingNumber: res.trackingNumber || order.value.trackingNumber,
+          trackingUrl: res.trackingUrl || order.value.trackingUrl,
+          shippoTransactionId: res.shippoTransactionId || order.value.shippoTransactionId,
+        }
+      }
+      return
+    }
     if (res.shippingStatus === 'label_purchasing') {
-      showToast('success', res.message || 'Label is being generated. Check again shortly.')
+      showToast('success', res.message || 'Label is being generated. Refresh shortly.')
     } else {
-      showToast('success', res.alreadyPurchased ? 'Label already purchased.' : 'Shipping label purchased.')
+      showToast('success', res.alreadyPurchased ? 'Label already purchased.' : res.message || 'Shipping label purchased.')
     }
   } catch (err: any) {
-    showToast('error', err.data?.message || err.message || 'Label purchase failed.')
-    await refreshOrder().catch(() => {})
+    // ofetch throws on non-2xx; body may still include ok:false diagnostics + label fields
+    const parsed = extractLabelError(err)
+    labelActionError.value = parsed
+    showToast('error', `Could not buy label: ${parsed.message}`)
+    const body = err?.data && typeof err.data === 'object' ? err.data : null
+    if (body?.shippingLabelUrl && order.value) {
+      order.value = {
+        ...order.value,
+        shippingLabelUrl: body.shippingLabelUrl,
+        trackingNumber: body.trackingNumber || order.value.trackingNumber,
+        trackingUrl: body.trackingUrl || order.value.trackingUrl,
+        shippoTransactionId: body.shippoTransactionId || order.value.shippoTransactionId,
+        shippingStatus: body.shippingStatus || order.value.shippingStatus,
+      }
+    } else {
+      await refreshOrder().catch(() => {})
+    }
   } finally {
     actionLoading.value = ''
   }

@@ -83,6 +83,44 @@ export function shippoHeaders(config: ShippoConfig): Record<string, string> {
   }
 }
 
+/** Strip tokens / oversized payloads from Shippo error text before logging or returning. */
+export function sanitizeShippoErrorText(raw: unknown, maxLen = 400): string {
+  let text = typeof raw === 'string' ? raw : String(raw || 'Unknown Shippo error')
+  text = text
+    .replace(/ShippoToken\s+\S+/gi, 'ShippoToken [redacted]')
+    .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
+    .replace(/"(api_?key|token|password|secret)"\s*:\s*"[^"]*"/gi, '"$1":"[redacted]"')
+  // Prefer JSON message/detail fields when present
+  try {
+    const parsed = JSON.parse(text)
+    const parts: string[] = []
+    if (parsed?.detail) parts.push(String(parsed.detail))
+    if (Array.isArray(parsed?.messages)) {
+      for (const m of parsed.messages.slice(0, 3)) {
+        if (m?.text) parts.push(String(m.text))
+        else if (typeof m === 'string') parts.push(m)
+      }
+    }
+    if (parsed?.message && !parts.length) parts.push(String(parsed.message))
+    if (parts.length) text = parts.join('; ')
+  } catch {
+    // not JSON — keep sanitized text
+  }
+  return text.replace(/\s+/g, ' ').trim().slice(0, maxLen)
+}
+
+export function isShippoRateExpiredError(message: string): boolean {
+  const m = message.toLowerCase()
+  return (
+    m.includes('rate has expired') ||
+    m.includes('rate expired') ||
+    m.includes('expired rate') ||
+    m.includes('invalid rate') ||
+    m.includes('does not exist') ||
+    m.includes('object does not exist')
+  )
+}
+
 export async function shippoFetch<T>(
   config: ShippoConfig,
   path: string,
@@ -97,7 +135,14 @@ export async function shippoFetch<T>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => 'Unknown error')
-    throw new Error(`Shippo request failed ${res.status}: ${text}`)
+    const safe = sanitizeShippoErrorText(text)
+    const err = new Error(`Shippo request failed ${res.status}: ${safe}`) as Error & {
+      statusCode?: number
+      shippoSafeDetail?: string
+    }
+    err.statusCode = res.status
+    err.shippoSafeDetail = safe
+    throw err
   }
 
   return (await res.json()) as T

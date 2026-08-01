@@ -1,5 +1,11 @@
 import { requireAdminAuth } from '~/server/utils/adminAuth'
-import { getShippoConfig, purchaseShippoLabelFromRate, getShippoTransaction } from '~/server/utils/shippo'
+import {
+  getShippoConfig,
+  purchaseShippoLabelFromRate,
+  getShippoTransaction,
+  sanitizeShippoErrorText,
+  isShippoRateExpiredError,
+} from '~/server/utils/shippo'
 
 function hasShippingAddress(attrs: Record<string, any>): boolean {
   const line1 = attrs.shippingAddressLine1 || attrs.shippingAddress1
@@ -12,62 +18,173 @@ function hasShippingAddress(attrs: Record<string, any>): boolean {
   )
 }
 
+function isTestMode(config: ReturnType<typeof useRuntimeConfig>): boolean {
+  const mode = String(config.public?.shippoMode || config.shippoMode || 'test').toLowerCase()
+  return mode !== 'live' && mode !== 'production'
+}
+
+function isStrapiSchemaError(err: any): boolean {
+  const raw = JSON.stringify(err?.data || err?.message || err || '').toLowerCase()
+  return (
+    raw.includes('invalid key') ||
+    raw.includes('unknownfield') ||
+    raw.includes('unknown field') ||
+    raw.includes('not a valid enumeration') ||
+    (raw.includes('attribute') && raw.includes('does not exist')) ||
+    (raw.includes('enumeration') && raw.includes('must be one of'))
+  )
+}
+
+function strapiSchemaMessage(): string {
+  return 'Production Strapi schema is missing Shippo label fields. Redeploy Strapi before testing labels.'
+}
+
+function safeFail(
+  event: any,
+  statusCode: number,
+  step: string,
+  message: string,
+  detail: string | null,
+  includeDetail: boolean
+) {
+  setResponseStatus(event, statusCode)
+  return {
+    ok: false as const,
+    step,
+    message,
+    detail: includeDetail && detail ? detail.slice(0, 400) : undefined,
+  }
+}
+
+function logBuyLabelDiagnostics(payload: Record<string, unknown>) {
+  console.info('[buy-label]', JSON.stringify(payload))
+}
+
+async function patchOrder(
+  strapiUrl: string,
+  headers: Record<string, string>,
+  orderId: number | string,
+  data: Record<string, unknown>
+): Promise<{ ok: true } | { ok: false; schemaMissing: boolean; detail: string }> {
+  try {
+    await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
+      method: 'PUT',
+      headers,
+      body: { data },
+    })
+    return { ok: true }
+  } catch (err: any) {
+    const detail = sanitizeShippoErrorText(
+      err?.data?.error?.message ||
+        err?.data?.message ||
+        err?.message ||
+        'Strapi update failed',
+      400
+    )
+    console.error('[buy-label] strapi_label_save failed:', detail)
+    return {
+      ok: false,
+      schemaMissing: isStrapiSchemaError(err) || /invalid key|unknown field|enumeration/i.test(detail),
+      detail,
+    }
+  }
+}
+
 /**
  * POST /api/admin/orders/:id/buy-label
  * Purchase a Shippo label for a paid order using the previously selected rate.
  */
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
-  requireAdminAuth(event, config.ownerSessionSecret as string)
+  const testMode = isTestMode(config)
+
+  try {
+    requireAdminAuth(event, config.ownerSessionSecret as string)
+  } catch {
+    return safeFail(event, 401, 'admin_auth', 'Unauthorized', null, testMode)
+  }
 
   const id = getRouterParam(event, 'id')
   if (!id || isNaN(Number(id))) {
-    throw createError({ statusCode: 400, message: 'Invalid order ID.' })
+    return safeFail(event, 400, 'order_load', 'Invalid order ID.', null, testMode)
   }
 
   const strapiUrl = config.public.strapiUrl as string
   const strapiToken = config.strapiToken as string
+  if (!strapiToken) {
+    return safeFail(event, 500, 'order_load', 'Strapi is not configured.', null, testMode)
+  }
+
   const headers = {
     Authorization: `Bearer ${strapiToken}`,
     'Content-Type': 'application/json',
   }
 
-  const orderRes = await $fetch<{ data: any }>(`${strapiUrl}/api/orders/${id}`, { headers }).catch(
-    () => {
-      throw createError({ statusCode: 404, message: 'Order not found.' })
-    }
-  )
+  let entry: any
+  try {
+    const orderRes = await $fetch<{ data: any }>(`${strapiUrl}/api/orders/${id}`, { headers })
+    entry = orderRes.data
+  } catch (err: any) {
+    logBuyLabelDiagnostics({
+      step: 'order_load',
+      orderId: id,
+      ok: false,
+    })
+    return safeFail(event, 404, 'order_load', 'Order not found.', null, testMode)
+  }
 
-  const entry = orderRes.data
-  if (!entry) throw createError({ statusCode: 404, message: 'Order not found.' })
+  if (!entry) {
+    return safeFail(event, 404, 'order_load', 'Order not found.', null, testMode)
+  }
 
   const attrs = entry.attributes || {}
   const orderId = entry.id
+  const orderNumber = attrs.orderNumber || null
+
+  const baseLog = {
+    orderId,
+    orderNumber,
+    paymentStatus: attrs.paymentStatus || null,
+    shippingStatus: attrs.shippingStatus || null,
+    hasShippoRateId: Boolean(attrs.shippoRateId),
+    hasShippoTransactionId: Boolean(attrs.shippoTransactionId),
+    hasShippingLabelUrl: Boolean(attrs.shippingLabelUrl),
+    hasTrackingNumber: Boolean(attrs.trackingNumber),
+    hasShippingAddress: hasShippingAddress(attrs),
+  }
 
   // Idempotent: already have a successful label
   if (attrs.shippoTransactionId && attrs.shippingLabelUrl) {
+    logBuyLabelDiagnostics({ ...baseLog, step: 'already_has_label', ok: true })
     return {
       ok: true,
-      orderNumber: attrs.orderNumber || null,
+      orderNumber,
       shippingStatus: attrs.shippingStatus || 'label_purchased',
       shippoTransactionId: attrs.shippoTransactionId,
       shippingLabelUrl: attrs.shippingLabelUrl,
       trackingNumber: attrs.trackingNumber || null,
       trackingUrl: attrs.trackingUrl || null,
       alreadyPurchased: true,
+      message: 'Label already purchased.',
     }
   }
 
-  // If a transaction is in flight (or label URL missing), refresh — never buy a second label
+  // If a transaction exists, refresh only — never buy a second label
   if (attrs.shippoTransactionId) {
     const shippoConfig = getShippoConfig(event)
     if (!shippoConfig.apiToken) {
-      throw createError({ statusCode: 500, message: 'Shippo is not configured.' })
+      logBuyLabelDiagnostics({ ...baseLog, step: 'shippo_error', ok: false, reason: 'missing_token' })
+      return safeFail(event, 500, 'shippo_error', 'Shippo is not configured.', null, testMode)
     }
 
     try {
       const existing = await getShippoTransaction(shippoConfig, attrs.shippoTransactionId)
       const status = String(existing.status || '').toUpperCase()
+      logBuyLabelDiagnostics({
+        ...baseLog,
+        step: 'shippo_transaction_refresh',
+        shippoTransactionStatus: status,
+      })
 
       if (status === 'SUCCESS' && existing.label_url) {
         const patch = {
@@ -78,156 +195,232 @@ export default defineEventHandler(async (event) => {
           labelPurchasedAt: attrs.labelPurchasedAt || new Date().toISOString(),
           labelErrorMessage: null,
         }
-        await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
-          method: 'PUT',
-          headers,
-          body: { data: patch },
-        })
+        const saved = await patchOrder(strapiUrl, headers, orderId, patch)
+        if (!saved.ok) {
+          return {
+            ok: true,
+            orderNumber,
+            shippingStatus: 'label_purchased',
+            shippoTransactionId: attrs.shippoTransactionId,
+            shippingLabelUrl: existing.label_url,
+            trackingNumber: patch.trackingNumber,
+            trackingUrl: patch.trackingUrl,
+            alreadyPurchased: true,
+            message: saved.schemaMissing
+              ? strapiSchemaMessage()
+              : 'Label exists in Shippo but could not be saved to Strapi. Redeploy Strapi or retry.',
+            detail: testMode ? saved.detail : undefined,
+            strapiSaveFailed: true,
+          }
+        }
         return {
           ok: true,
-          orderNumber: attrs.orderNumber || null,
+          orderNumber,
           shippingStatus: 'label_purchased',
           shippoTransactionId: attrs.shippoTransactionId,
           shippingLabelUrl: existing.label_url,
           trackingNumber: patch.trackingNumber,
           trackingUrl: patch.trackingUrl,
           alreadyPurchased: true,
+          message: 'Label already purchased.',
         }
       }
 
-      if (status === 'WAITING' || status === 'QUEUED' || attrs.shippingStatus === 'label_purchasing') {
-        await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
-          method: 'PUT',
-          headers,
-          body: { data: { shippingStatus: 'label_purchasing', labelErrorMessage: null } },
-        }).catch(() => {})
-
+      if (status === 'WAITING' || status === 'QUEUED') {
+        await patchOrder(strapiUrl, headers, orderId, {
+          shippingStatus: 'label_purchasing',
+          labelErrorMessage: null,
+        })
         return {
           ok: true,
-          orderNumber: attrs.orderNumber || null,
+          orderNumber,
           shippingStatus: 'label_purchasing',
           shippoTransactionId: attrs.shippoTransactionId,
           shippingLabelUrl: existing.label_url || null,
           trackingNumber: existing.tracking_number || attrs.trackingNumber || null,
           trackingUrl: existing.tracking_url_provider || attrs.trackingUrl || null,
-          message: 'Label is being generated. Check again shortly.',
+          message: 'Label is being generated. Refresh shortly.',
         }
       }
 
       if (status === 'ERROR') {
         const errorMessage =
-          (existing.messages || [])
-            .map((m: any) => m?.text)
-            .filter(Boolean)
-            .slice(0, 3)
-            .join('; ') || 'Shippo returned an error creating the label.'
+          sanitizeShippoErrorText(
+            (existing.messages || [])
+              .map((m: any) => m?.text)
+              .filter(Boolean)
+              .slice(0, 3)
+              .join('; ') || 'Shippo returned an error creating the label.'
+          )
 
-        await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
-          method: 'PUT',
-          headers,
-          body: {
-            data: {
-              shippingStatus: 'label_failed',
-              labelErrorMessage: errorMessage,
-            },
-          },
-        }).catch(() => {})
-
-        throw createError({
-          statusCode: 502,
-          message: errorMessage,
+        await patchOrder(strapiUrl, headers, orderId, {
+          shippingStatus: 'label_failed',
+          labelErrorMessage: errorMessage,
         })
+
+        logBuyLabelDiagnostics({
+          ...baseLog,
+          step: 'shippo_error',
+          shippoTransactionStatus: status,
+          ok: false,
+        })
+        return safeFail(event, 502, 'shippo_error', errorMessage, errorMessage, testMode)
       }
+
+      // Unknown Shippo status — do not create a duplicate transaction
+      return safeFail(
+        event,
+        502,
+        'shippo_error',
+        `Shippo transaction status is "${status || 'unknown'}". Refresh shortly or contact support.`,
+        `transactionStatus=${status || 'unknown'}`,
+        testMode
+      )
     } catch (err: any) {
-      if (err?.statusCode === 502) throw err
-      console.error('Shippo transaction refresh failed:', err?.message || err)
-      // Fall through only if no in-flight purchase — otherwise do not create a duplicate
+      const detail = sanitizeShippoErrorText(err?.shippoSafeDetail || err?.message || err)
+      logBuyLabelDiagnostics({
+        ...baseLog,
+        step: 'shippo_error',
+        ok: false,
+        reason: 'refresh_failed',
+      })
+      // Never fall through to a second purchase when a transaction id already exists
       if (attrs.shippingStatus === 'label_purchasing') {
         return {
           ok: true,
-          orderNumber: attrs.orderNumber || null,
+          orderNumber,
           shippingStatus: 'label_purchasing',
           shippoTransactionId: attrs.shippoTransactionId,
           shippingLabelUrl: null,
           trackingNumber: attrs.trackingNumber || null,
           trackingUrl: attrs.trackingUrl || null,
-          message: 'Label is being generated. Check again shortly.',
+          message: 'Label is being generated. Refresh shortly.',
+          detail: testMode ? detail : undefined,
         }
       }
+      return safeFail(
+        event,
+        502,
+        'shippo_error',
+        'Could not refresh the existing Shippo label transaction. Retry shortly — a second label was not purchased.',
+        detail,
+        testMode
+      )
     }
   }
 
   if (attrs.paymentStatus !== 'paid') {
-    throw createError({
-      statusCode: 400,
-      message: 'Label can be purchased after payment is confirmed.',
-    })
+    logBuyLabelDiagnostics({ ...baseLog, step: 'not_paid', ok: false })
+    return safeFail(
+      event,
+      400,
+      'not_paid',
+      'Label can be purchased after payment is confirmed.',
+      null,
+      testMode
+    )
   }
 
   if (attrs.status === 'cancelled' || attrs.paymentStatus === 'refunded' || attrs.paymentStatus === 'cancelled') {
-    throw createError({ statusCode: 400, message: 'Cannot buy a label for a cancelled or refunded order.' })
+    return safeFail(
+      event,
+      400,
+      'invalid_shipping_status',
+      'Cannot buy a label for a cancelled or refunded order.',
+      null,
+      testMode
+    )
   }
 
   if (!attrs.shippoRateId) {
-    throw createError({ statusCode: 400, message: 'No Shippo rate is selected for this order.' })
+    logBuyLabelDiagnostics({ ...baseLog, step: 'missing_rate', ok: false })
+    return safeFail(
+      event,
+      400,
+      'missing_rate',
+      'No Shippo rate is selected for this order.',
+      null,
+      testMode
+    )
   }
 
   if (!hasShippingAddress(attrs)) {
-    throw createError({ statusCode: 400, message: 'Shipping address is incomplete.' })
+    logBuyLabelDiagnostics({ ...baseLog, step: 'missing_shipping_address', ok: false })
+    return safeFail(
+      event,
+      400,
+      'missing_shipping_address',
+      'Shipping address is incomplete.',
+      null,
+      testMode
+    )
   }
 
   const allowedStatuses = ['selected', 'ready_to_ship', 'label_failed']
   if (!allowedStatuses.includes(attrs.shippingStatus)) {
-    throw createError({
-      statusCode: 400,
-      message: `Cannot buy a label when shipping status is "${attrs.shippingStatus}".`,
-    })
+    logBuyLabelDiagnostics({ ...baseLog, step: 'invalid_shipping_status', ok: false })
+    return safeFail(
+      event,
+      400,
+      'invalid_shipping_status',
+      `Cannot buy a label when shipping status is "${attrs.shippingStatus}".`,
+      null,
+      testMode
+    )
   }
 
   const shippoConfig = getShippoConfig(event)
   if (!shippoConfig.apiToken) {
-    throw createError({ statusCode: 500, message: 'Shippo is not configured.' })
+    return safeFail(event, 500, 'shippo_error', 'Shippo is not configured.', null, testMode)
   }
 
-  // Mark purchasing before Shippo call
-  await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
-    method: 'PUT',
-    headers,
-    body: { data: { shippingStatus: 'label_purchasing', labelErrorMessage: null } },
-  }).catch(() => {
-    // continue — purchasing status is best-effort
+  // Mark purchasing before Shippo call (best-effort)
+  const purchasingPatch = await patchOrder(strapiUrl, headers, orderId, {
+    shippingStatus: 'label_purchasing',
+    labelErrorMessage: null,
   })
+  if (!purchasingPatch.ok && purchasingPatch.schemaMissing) {
+    logBuyLabelDiagnostics({ ...baseLog, step: 'strapi_label_save', ok: false, schemaMissing: true })
+    return safeFail(event, 502, 'strapi_label_save', strapiSchemaMessage(), purchasingPatch.detail, testMode)
+  }
 
   let result
   try {
+    logBuyLabelDiagnostics({ ...baseLog, step: 'shippo_transaction_create', ok: true })
     result = await purchaseShippoLabelFromRate(shippoConfig, attrs.shippoRateId, {
       labelFileType: 'PDF_4x6',
       async: false,
     })
   } catch (err: any) {
-    console.error('Shippo label purchase failed:', err?.message || err)
-    const safeMsg = String(err?.message || 'Label purchase failed.')
-      .replace(/ShippoToken\s+\S+/gi, '[redacted]')
-      .slice(0, 400)
+    const detail = sanitizeShippoErrorText(err?.shippoSafeDetail || err?.message || err)
+    const expired = isShippoRateExpiredError(detail)
+    const message = expired
+      ? 'The selected Shippo shipping rate has expired or is invalid. Re-quote shipping for this order before buying a label.'
+      : 'Label purchase failed. Review the address, package details, and Shippo error.'
 
-    await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
-      method: 'PUT',
-      headers,
-      body: {
-        data: {
-          shippingStatus: 'label_failed',
-          labelErrorMessage: safeMsg,
-        },
-      },
-    }).catch(() => {})
-
-    throw createError({
-      statusCode: 502,
-      message: 'Label purchase failed. Review the address, package details, and Shippo error.',
+    await patchOrder(strapiUrl, headers, orderId, {
+      shippingStatus: 'label_failed',
+      labelErrorMessage: expired ? message : detail.slice(0, 400),
     })
+
+    logBuyLabelDiagnostics({
+      ...baseLog,
+      step: 'shippo_transaction_create',
+      ok: false,
+      rateExpired: expired,
+    })
+
+    return safeFail(event, 502, 'shippo_transaction_create', message, detail, testMode)
   }
 
   const status = String(result.status || '').toUpperCase()
+  logBuyLabelDiagnostics({
+    ...baseLog,
+    step: 'shippo_transaction_create',
+    shippoTransactionStatus: status,
+    hasLabelUrl: Boolean(result.labelUrl),
+    hasTracking: Boolean(result.trackingNumber),
+  })
 
   if (status === 'SUCCESS') {
     const patch = {
@@ -240,65 +433,74 @@ export default defineEventHandler(async (event) => {
       shippingStatus: 'label_purchased',
       labelErrorMessage: null,
     }
-    await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
-      method: 'PUT',
-      headers,
-      body: { data: patch },
-    })
+    const saved = await patchOrder(strapiUrl, headers, orderId, patch)
+    if (!saved.ok) {
+      logBuyLabelDiagnostics({
+        ...baseLog,
+        step: 'strapi_label_save',
+        ok: false,
+        schemaMissing: saved.schemaMissing,
+        shippoTransactionStatus: status,
+      })
+      // Label was purchased at Shippo — return it so admin can still print; flag Strapi failure
+      setResponseStatus(event, 502)
+      return {
+        ok: false,
+        step: 'strapi_label_save',
+        message: saved.schemaMissing
+          ? strapiSchemaMessage()
+          : 'Shippo created the label, but saving it to Strapi failed. Redeploy Strapi and click Buy Shipping Label again to refresh (no duplicate purchase if transaction id is saved).',
+        detail: testMode ? saved.detail : undefined,
+        shippoTransactionId: result.transactionId,
+        shippingLabelUrl: result.labelUrl,
+        trackingNumber: result.trackingNumber,
+        trackingUrl: result.trackingUrl,
+        shippingStatus: 'label_purchased',
+      }
+    }
 
     return {
       ok: true,
-      orderNumber: attrs.orderNumber || null,
+      orderNumber,
       shippingStatus: 'label_purchased',
       shippoTransactionId: result.transactionId,
       shippingLabelUrl: result.labelUrl,
       trackingNumber: result.trackingNumber,
       trackingUrl: result.trackingUrl,
+      labelCostCents: result.labelCostCents,
+      message: 'Shipping label purchased.',
     }
   }
 
   if (status === 'WAITING' || status === 'QUEUED') {
-    await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
-      method: 'PUT',
-      headers,
-      body: {
-        data: {
-          shippoTransactionId: result.transactionId,
-          shippingStatus: 'label_purchasing',
-          labelErrorMessage: null,
-        },
-      },
+    const saved = await patchOrder(strapiUrl, headers, orderId, {
+      shippoTransactionId: result.transactionId,
+      shippingStatus: 'label_purchasing',
+      labelErrorMessage: null,
     })
-
+    if (!saved.ok && saved.schemaMissing) {
+      return safeFail(event, 502, 'strapi_label_save', strapiSchemaMessage(), saved.detail, testMode)
+    }
     return {
       ok: true,
-      orderNumber: attrs.orderNumber || null,
+      orderNumber,
       shippingStatus: 'label_purchasing',
       shippoTransactionId: result.transactionId,
       shippingLabelUrl: null,
       trackingNumber: null,
       trackingUrl: null,
-      message: 'Label is being generated. Check again shortly.',
+      message: 'Label is being generated. Refresh shortly.',
     }
   }
 
   // ERROR or unknown
-  await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
-    method: 'PUT',
-    headers,
-    body: {
-      data: {
-        shippoTransactionId: result.transactionId || attrs.shippoTransactionId || null,
-        shippingStatus: 'label_failed',
-        labelErrorMessage: result.errorMessage || 'Shippo returned an error creating the label.',
-      },
-    },
+  const errorMessage =
+    result.errorMessage || 'Shippo returned an error creating the label.'
+  await patchOrder(strapiUrl, headers, orderId, {
+    shippoTransactionId: result.transactionId || null,
+    shippingStatus: 'label_failed',
+    labelErrorMessage: errorMessage,
   })
 
-  throw createError({
-    statusCode: 502,
-    message:
-      result.errorMessage ||
-      'Label purchase failed. Review the address, package details, and Shippo error.',
-  })
+  return safeFail(event, 502, 'shippo_error', errorMessage, errorMessage, testMode)
 })
