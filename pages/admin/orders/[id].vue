@@ -181,10 +181,15 @@
           </div>
         </dl>
 
-        <p v-if="order.labelErrorMessage" class="mb-4 text-sm text-red-400">{{ order.labelErrorMessage }}</p>
+        <p
+          v-if="order.labelErrorMessage && order.shippingStatus === 'label_failed'"
+          class="mb-4 text-sm text-red-400"
+        >
+          {{ order.labelErrorMessage }}
+        </p>
 
         <p
-          v-if="!canBuyLabel && buyLabelBlockedReason"
+          v-if="showBuyLabelBlockedNotice"
           class="mb-4 text-sm text-amber-300/90 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2"
         >
           Buy Shipping Label unavailable: {{ buyLabelBlockedReason }}
@@ -344,6 +349,15 @@ const buyLabelBlockedReason = computed(() => {
 })
 
 const canBuyLabel = computed(() => !buyLabelBlockedReason.value)
+
+/** Only show blockers the owner still needs to act on — not success states. */
+const showBuyLabelBlockedNotice = computed(() => {
+  if (!order.value || canBuyLabel.value || !buyLabelBlockedReason.value) return false
+  if (order.value.shippingLabelUrl || order.value.shippingStatus === 'label_purchased') return false
+  if (order.value.shippingStatus === 'label_purchasing') return false
+  if (order.value.shippingStatus === 'shipped' || order.value.shippingStatus === 'delivered') return false
+  return true
+})
 
 const canEmailTracking = computed(() => {
   if (!order.value) return false

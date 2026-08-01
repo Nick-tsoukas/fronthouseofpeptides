@@ -1,8 +1,8 @@
 <template>
-  <div class="min-h-screen bg-dark-950 py-8">
+  <div class="min-h-screen bg-dark-950 py-6 sm:py-8 pb-[max(6rem,env(safe-area-inset-bottom))] lg:pb-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Back Link -->
-      <NuxtLink to="/" class="inline-flex items-center text-dark-400 hover:text-primary-400 transition-colors mb-8">
+      <NuxtLink to="/" class="inline-flex items-center min-h-[44px] text-dark-400 hover:text-primary-400 transition-colors mb-6 sm:mb-8">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
         </svg>
@@ -11,8 +11,8 @@
 
       <!-- Loading State -->
       <div v-if="pending" class="animate-pulse">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          <div class="aspect-square bg-dark-800 rounded-xl"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
+          <div class="aspect-[4/3] sm:aspect-square bg-dark-800 rounded-xl"></div>
           <div class="space-y-4">
             <div class="h-8 bg-dark-800 rounded w-3/4"></div>
             <div class="h-4 bg-dark-800 rounded w-full"></div>
@@ -25,15 +25,15 @@
       <div v-else-if="!product" class="text-center py-16">
         <h1 class="text-2xl font-bold text-white mb-4">Product Unavailable</h1>
         <p class="text-dark-400 mb-8">This product doesn't exist or is no longer available.</p>
-        <NuxtLink to="/" class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-lg transition-colors">
+        <NuxtLink to="/" class="inline-flex min-h-[48px] items-center px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-xl transition-colors">
           Back to Shop
         </NuxtLink>
       </div>
 
       <!-- Product Details -->
-      <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
         <!-- Product Image -->
-        <div class="relative aspect-square rounded-xl overflow-hidden">
+        <div class="relative aspect-[4/3] sm:aspect-square rounded-xl overflow-hidden">
           <img
             v-if="imageUrl"
             :src="imageUrl"
@@ -53,12 +53,12 @@
         </div>
 
         <!-- Product Info -->
-        <div class="space-y-6">
+        <div class="space-y-5 sm:space-y-6">
           <div>
-            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">
+            <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-2">
               {{ product.attributes.name }}
             </h1>
-            <p class="text-dark-400">
+            <p class="text-dark-400 text-sm sm:text-base leading-relaxed">
               {{ product.attributes.shortDescription }}
             </p>
           </div>
@@ -99,11 +99,12 @@
             />
           </div>
 
-          <!-- Add to Cart Button -->
+          <!-- Desktop Add to Cart -->
           <button
+            type="button"
             @click="handleAddToCart"
             :disabled="!selectedVariant || isOutOfStock"
-            class="w-full py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-lg transition-all duration-200 text-lg"
+            class="hidden lg:flex w-full min-h-[52px] items-center justify-center py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-xl transition-all duration-200 text-lg"
           >
             <span v-if="!selectedVariant">Select a Variant</span>
             <span v-else-if="isOutOfStock">Out of Stock</span>
@@ -112,14 +113,14 @@
 
           <!-- Research Notice -->
           <div class="bg-dark-800/50 rounded-lg p-4 border border-dark-700">
-            <p class="text-dark-400 text-sm">
+            <p class="text-dark-400 text-sm leading-relaxed">
               <span class="text-primary-400 font-semibold">Research Use Only</span> —
               This product is intended for laboratory research purposes only. Not for human or veterinary use.
             </p>
           </div>
 
           <!-- Description (rendered Markdown) -->
-          <div v-if="product.attributes.description" class="prose prose-invert max-w-none">
+          <div v-if="product.attributes.description" class="prose prose-invert max-w-none pb-4">
             <h3 class="text-lg font-semibold text-white mb-3">Description</h3>
             <div
               class="text-dark-300 prose-headings:text-white prose-strong:text-white prose-a:text-primary-400"
@@ -127,6 +128,32 @@
             ></div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Mobile sticky Add to Cart -->
+    <div
+      v-if="product"
+      class="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-dark-700 bg-dark-950/95 backdrop-blur-xl
+        px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+    >
+      <div class="flex items-center gap-3 max-w-7xl mx-auto">
+        <div class="min-w-0 flex-1">
+          <p class="text-white text-sm font-medium truncate">{{ product.attributes.name }}</p>
+          <p class="text-primary-400 text-sm font-semibold">
+            {{ selectedVariant ? formatPrice(selectedVariant.attributes.price) : priceRange }}
+          </p>
+        </div>
+        <button
+          type="button"
+          @click="handleAddToCart"
+          :disabled="!selectedVariant || isOutOfStock"
+          class="shrink-0 min-h-[48px] px-5 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold transition-colors"
+        >
+          <span v-if="!selectedVariant">Select size</span>
+          <span v-else-if="isOutOfStock">Out of stock</span>
+          <span v-else>Add to Cart</span>
+        </button>
       </div>
     </div>
   </div>

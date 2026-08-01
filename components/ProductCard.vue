@@ -54,7 +54,7 @@
       <div class="flex">
         <NuxtLink
           :to="`/product/${product.attributes.slug}`"
-          class="w-full px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold rounded-lg text-center transition-colors duration-200"
+          class="w-full min-h-[44px] px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold rounded-xl text-center transition-colors duration-200 inline-flex items-center justify-center"
         >
           View Details
         </NuxtLink>

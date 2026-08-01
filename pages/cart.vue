@@ -22,32 +22,38 @@
             <div
               v-for="item in cartStore.items"
               :key="item.variantId"
-              class="flex gap-4 p-4 sm:p-6"
+              class="flex flex-col gap-3 p-4 sm:p-6 sm:flex-row sm:gap-4"
             >
-              <!-- Gradient Placeholder -->
-              <div
-                class="w-20 h-20 sm:w-24 sm:h-24 rounded-lg flex-shrink-0"
-                :style="{ background: getGradient(item.productId) }"
-              ></div>
+              <div class="flex gap-3 sm:gap-4 min-w-0 flex-1">
+                <div
+                  class="w-16 h-16 sm:w-24 sm:h-24 rounded-lg flex-shrink-0"
+                  :style="{ background: getGradient(item.productId) }"
+                ></div>
 
-              <!-- Item Details -->
-              <div class="flex-1 min-w-0">
-                <h3 class="text-white font-semibold text-lg">{{ item.productName }}</h3>
-                <p class="text-dark-400">{{ item.variantName }}</p>
-                <p class="text-dark-500 text-sm">SKU: {{ item.sku }}</p>
-                <p class="text-primary-400 font-semibold mt-2">{{ formatPrice(item.unitPrice) }}</p>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <h3 class="text-white font-semibold text-base sm:text-lg leading-snug">{{ item.productName }}</h3>
+                      <p class="text-dark-400 text-sm sm:text-base">{{ item.variantName }}</p>
+                      <p class="text-dark-500 text-xs sm:text-sm">SKU: {{ item.sku }}</p>
+                      <p class="text-primary-400 font-semibold mt-1.5">{{ formatPrice(item.unitPrice) }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      @click="cartStore.removeItem(item.variantId)"
+                      class="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-dark-500 hover:text-red-400 hover:bg-dark-800 transition-colors shrink-0"
+                      aria-label="Remove item"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <!-- Quantity & Actions -->
-              <div class="flex flex-col items-end justify-between">
-                <button
-                  @click="cartStore.removeItem(item.variantId)"
-                  class="text-dark-500 hover:text-red-400 transition-colors p-1"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+              <div class="flex items-center justify-between sm:flex-col sm:items-end sm:justify-end gap-2 pl-0 sm:pl-0">
+                <span class="text-dark-500 text-xs uppercase tracking-wide sm:hidden">Qty</span>
                 <QuantitySelector
                   :model-value="item.quantity"
                   @update:model-value="(qty) => cartStore.updateQuantity(item.variantId, qty)"
@@ -83,7 +89,7 @@
 
           <NuxtLink
             to="/checkout"
-            class="block w-full py-4 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-lg text-center transition-colors text-lg"
+            class="flex min-h-[48px] w-full items-center justify-center py-4 bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-xl text-center transition-colors text-lg"
           >
             Proceed to Checkout
           </NuxtLink>

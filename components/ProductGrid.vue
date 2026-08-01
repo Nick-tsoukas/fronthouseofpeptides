@@ -1,5 +1,5 @@
 <template>
-  <section id="products" class="relative py-24 bg-dark-950">
+  <section id="products" class="relative py-24 bg-dark-950 overflow-hidden">
     <!-- Background -->
     <div class="absolute inset-0">
       <div class="absolute top-0 right-1/4 w-[500px] h-[500px] bg-cyan-500/5 rounded-full blur-[150px]"></div>

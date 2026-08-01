@@ -43,10 +43,10 @@
         </NuxtLink>
       </div>
 
-      <div v-else class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+      <div v-else class="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8 pb-[max(1rem,env(safe-area-inset-bottom))]">
 
         <!-- Left: Form -->
-        <div class="lg:col-span-3 space-y-6">
+        <div class="lg:col-span-3 space-y-5 sm:space-y-6 order-last lg:order-none">
 
           <!-- Contact Information -->
           <div class="bg-dark-900 rounded-xl border border-dark-700 p-6 space-y-4">
@@ -60,7 +60,7 @@
                   type="text"
                   placeholder="Jane"
                   :disabled="isBusy"
-                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                  class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
                 />
               </div>
               <div>
@@ -70,7 +70,7 @@
                   type="text"
                   placeholder="Smith"
                   :disabled="isBusy"
-                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                  class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
                 />
               </div>
             </div>
@@ -82,7 +82,7 @@
                 type="email"
                 placeholder="researcher@institution.edu"
                 :disabled="isBusy"
-                class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
               />
             </div>
 
@@ -94,7 +94,7 @@
                 placeholder="(555) 123-4567"
                 autocomplete="tel"
                 :disabled="isBusy"
-                class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
               />
             </div>
           </div>
@@ -111,7 +111,7 @@
                 placeholder="123 Research Blvd"
                 autocomplete="shipping address-line1"
                 :disabled="isBusy"
-                class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
               />
             </div>
 
@@ -123,7 +123,7 @@
                 placeholder="Suite 100"
                 autocomplete="shipping address-line2"
                 :disabled="isBusy"
-                class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
               />
             </div>
 
@@ -136,7 +136,7 @@
                   placeholder="Austin"
                   autocomplete="shipping locality"
                   :disabled="isBusy"
-                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                  class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
                 />
               </div>
               <div>
@@ -147,7 +147,7 @@
                   placeholder="TX"
                   autocomplete="shipping region"
                   :disabled="isBusy"
-                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                  class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
                 />
               </div>
             </div>
@@ -161,7 +161,7 @@
                   placeholder="78701"
                   autocomplete="shipping postal-code"
                   :disabled="isBusy"
-                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                  class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
                 />
               </div>
               <div>
@@ -171,7 +171,7 @@
                   type="text"
                   placeholder="US"
                   disabled
-                  class="w-full px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
+                  class="w-full min-h-[44px] px-4 py-2.5 bg-dark-800 border border-dark-600 rounded-lg text-base text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 transition-colors disabled:opacity-60"
                 />
                 <p class="text-dark-500 text-xs mt-1">US shipping only.</p>
               </div>
@@ -252,7 +252,7 @@
           <button
             @click="getShippingRates"
             :disabled="!canGetRates || isBusy"
-            class="w-full py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-lg transition-all duration-200 text-lg flex items-center justify-center gap-2"
+            class="w-full min-h-[48px] py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-xl transition-all duration-200 text-lg flex items-center justify-center gap-2"
           >
             <svg v-if="isPreparing || isLoadingRates" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -299,33 +299,33 @@
                 <label
                   v-for="rate in rates"
                   :key="rate.rateId"
-                  class="flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors"
+                  class="flex items-start sm:items-center gap-3 p-3.5 min-h-[56px] rounded-xl border cursor-pointer transition-colors"
                   :class="selectedRateId === rate.rateId ? 'border-primary-500 bg-primary-500/10' : 'border-dark-600 bg-dark-800 hover:bg-dark-700'"
                 >
-                  <div class="flex items-center gap-3">
-                    <input
-                      v-model="selectedRateId"
-                      type="radio"
-                      name="shippingRate"
-                      :value="rate.rateId"
-                      :disabled="isBusy"
-                      class="w-4 h-4 text-primary-500 border-dark-600 bg-dark-900 focus:ring-primary-500"
-                    />
-                    <div class="text-sm">
-                      <p class="text-white font-medium">{{ rate.carrier }} — {{ rate.service }}</p>
-                      <p class="text-dark-400 text-xs">
+                  <input
+                    v-model="selectedRateId"
+                    type="radio"
+                    name="shippingRate"
+                    :value="rate.rateId"
+                    :disabled="isBusy"
+                    class="mt-1 sm:mt-0 h-5 w-5 shrink-0 text-primary-500 border-dark-600 bg-dark-900 focus:ring-primary-500"
+                  />
+                  <div class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3">
+                    <div class="min-w-0">
+                      <p class="text-white font-medium text-sm leading-snug">{{ rate.carrier }} — {{ rate.service }}</p>
+                      <p class="text-dark-400 text-xs mt-0.5">
                         {{ rate.deliveryDays != null ? `${rate.deliveryDays} business days` : 'Delivery time varies' }}
                       </p>
                     </div>
+                    <span class="text-white font-semibold text-sm tabular-nums shrink-0">{{ formatCents(rate.amountCents) }}</span>
                   </div>
-                  <span class="text-white font-semibold text-sm">{{ formatCents(rate.amountCents) }}</span>
                 </label>
               </div>
 
               <button
                 @click="selectShippingRate"
                 :disabled="!selectedRateId || isBusy || (shippingStatus === 'selected' && selectedRateId === confirmedRateId)"
-                class="w-full py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
+                class="w-full min-h-[48px] py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
               >
                 <svg v-if="isSelectingRate" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -341,7 +341,7 @@
             v-if="pendingOrderId"
             @click="continueToPayment"
             :disabled="!canContinueToPayment || isBusy"
-            class="w-full py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-lg transition-all duration-200 text-lg flex items-center justify-center gap-2"
+            class="w-full min-h-[48px] py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-xl transition-all duration-200 text-lg flex items-center justify-center gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -358,22 +358,22 @@
           </NuxtLink>
         </div>
 
-        <!-- Right: Order Summary -->
-        <div class="lg:col-span-2">
-          <div class="bg-dark-900 rounded-xl border border-dark-700 p-6 sticky top-6">
+        <!-- Right: Order Summary (first on mobile) -->
+        <div class="lg:col-span-2 order-first lg:order-none">
+          <div class="bg-dark-900 rounded-xl border border-dark-700 p-5 sm:p-6 lg:sticky lg:top-6">
             <h2 class="text-lg font-semibold text-white mb-4">Order Summary</h2>
 
             <div class="divide-y divide-dark-800">
               <div
                 v-for="item in cartStore.items"
                 :key="item.variantId"
-                class="flex justify-between py-3 text-sm"
+                class="flex justify-between py-3 text-sm gap-3"
               >
-                <div class="pr-4">
-                  <p class="text-white font-medium">{{ item.productName }}</p>
+                <div class="pr-2 min-w-0">
+                  <p class="text-white font-medium leading-snug">{{ item.productName }}</p>
                   <p class="text-dark-400">{{ item.variantName }} × {{ item.quantity }}</p>
                 </div>
-                <p class="text-white whitespace-nowrap">{{ formatPrice(item.unitPrice * item.quantity) }}</p>
+                <p class="text-white whitespace-nowrap shrink-0">{{ formatPrice(item.unitPrice * item.quantity) }}</p>
               </div>
             </div>
 

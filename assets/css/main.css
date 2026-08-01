@@ -8,7 +8,7 @@
   }
   
   body {
-    @apply bg-dark-950 text-white antialiased;
+    @apply bg-dark-950 text-white antialiased overflow-x-hidden;
   }
 }
 

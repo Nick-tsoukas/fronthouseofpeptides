@@ -82,7 +82,7 @@
         v-else
         class="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 items-start"
       >
-        <section class="rounded-2xl border border-slate-600/50 bg-gradient-to-b from-dark-900 to-dark-950 p-6 sm:p-8 shadow-xl shadow-black/25">
+        <section ref="paymentPanelRef" class="rounded-2xl border border-slate-600/50 bg-gradient-to-b from-dark-900 to-dark-950 p-6 sm:p-8 shadow-xl shadow-black/25">
           <div class="mb-6">
             <h2 class="text-xl font-semibold text-white">Card Payment</h2>
             <p class="mt-2 flex items-start gap-2 text-dark-400 text-sm leading-relaxed">
@@ -104,58 +104,66 @@
 
           <div
             v-if="paymentStage === 'paid'"
-            class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-4"
+            class="rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-5 py-8 text-center"
           >
-            <p class="text-emerald-400 text-sm font-semibold">Payment confirmed</p>
-            <p class="text-emerald-100/80 text-sm mt-1">Redirecting to your order confirmation…</p>
+            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p class="text-emerald-300 text-lg font-semibold">Payment confirmed</p>
+            <p class="text-emerald-100/75 text-sm mt-2">Taking you to your order confirmation…</p>
           </div>
 
           <div v-else class="relative">
+            <!-- In-place status overlay — keeps layout stable (no off-page jump) -->
             <div
-              v-if="paymentStage === 'awaiting_confirmation'"
-              class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-5 mb-4"
+              v-if="showPaymentOverlay"
+              class="absolute inset-0 z-20 rounded-xl bg-dark-950/92 backdrop-blur-sm border border-slate-600/40 flex items-center justify-center p-6"
             >
-              <p class="text-amber-300 text-sm font-semibold">Payment is processing</p>
-              <p class="text-amber-100/80 text-sm mt-2 leading-relaxed">
-                Payment is processing. Your order was submitted and is waiting for confirmation from Moov.
-              </p>
-              <div class="mt-4 flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  @click="checkPaymentStatus"
-                  :disabled="isCheckingStatus"
-                  class="px-4 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold transition-colors"
-                >
-                  {{ isCheckingStatus ? 'Checking…' : 'Check payment status' }}
-                </button>
-                <NuxtLink
-                  :to="`/checkout/success?orderId=${orderId}`"
-                  class="px-4 py-2.5 rounded-xl bg-dark-800 hover:bg-dark-700 border border-dark-600 text-white text-sm font-medium text-center transition-colors"
-                >
-                  View order status
-                </NuxtLink>
+              <div class="w-full max-w-sm text-center">
+                <template v-if="paymentStage === 'awaiting_confirmation'">
+                  <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p class="text-amber-300 text-base font-semibold">Confirming with Moov</p>
+                  <p class="text-dark-300 text-sm mt-2 leading-relaxed">
+                    Your card was submitted. We’re waiting for final confirmation.
+                  </p>
+                  <div class="mt-5 flex flex-col gap-2.5">
+                    <button
+                      type="button"
+                      @click="checkPaymentStatus"
+                      :disabled="isCheckingStatus"
+                      class="min-h-[44px] px-4 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:opacity-60 text-white text-sm font-semibold"
+                    >
+                      {{ isCheckingStatus ? 'Checking…' : 'Check payment status' }}
+                    </button>
+                    <NuxtLink
+                      :to="`/checkout/success?orderId=${orderId}`"
+                      class="min-h-[44px] inline-flex items-center justify-center px-4 rounded-xl bg-dark-800 hover:bg-dark-700 border border-dark-600 text-white text-sm font-medium"
+                    >
+                      View order status
+                    </NuxtLink>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="mx-auto mb-4 h-10 w-10 rounded-full border-2 border-primary-500/30 border-t-primary-400 animate-spin" />
+                  <p class="text-primary-300 text-base font-semibold">{{ busyMessage }}</p>
+                  <p class="text-dark-400 text-sm mt-2">Please keep this window open.</p>
+                </template>
               </div>
             </div>
 
             <div
-              v-else-if="paymentStage === 'preparing' || paymentStage === 'processing_payment'"
-              class="rounded-xl border border-primary-500/30 bg-primary-500/10 px-4 py-5 text-center mb-4"
-            >
-              <div class="mx-auto mb-3 h-8 w-8 rounded-full border-2 border-primary-500/30 border-t-primary-400 animate-spin" />
-              <p class="text-primary-300 text-sm font-semibold">{{ busyMessage }}</p>
-            </div>
-
-            <!-- Keep Moov Drop mounted across retries — remounting loses accountID -->
-            <div
               :class="{
-                'opacity-0 pointer-events-none absolute inset-0 overflow-hidden h-0':
-                  paymentStage === 'preparing' ||
-                  paymentStage === 'processing_payment' ||
-                  paymentStage === 'awaiting_confirmation',
+                'pointer-events-none select-none blur-[1px] opacity-40': showPaymentOverlay,
               }"
             >
             <!-- Contact / billing -->
-            <div class="mb-6 space-y-4" :class="{ 'opacity-60 pointer-events-none': paymentStage === 'card_submitting' }">
+            <div class="mb-6 space-y-4">
               <h3 class="text-sm font-semibold text-white tracking-wide">Billing & contact</h3>
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -237,7 +245,7 @@
               </div>
             </div>
 
-            <div class="mb-2" :class="{ 'opacity-60 pointer-events-none': paymentStage === 'card_submitting' }">
+            <div class="mb-2">
               <h3 class="text-sm font-semibold text-white tracking-wide mb-3">Card details</h3>
               <ClientOnly>
                 <div class="payment-card-drop-shell">
@@ -357,7 +365,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { CURRENCY } from '~/constants'
 
 interface CardSessionResponse {
@@ -456,10 +464,23 @@ const isBusy = computed(() =>
   ['card_submitting', 'preparing', 'processing_payment'].includes(paymentStage.value)
 )
 
+const showPaymentOverlay = computed(() =>
+  ['preparing', 'processing_payment', 'awaiting_confirmation'].includes(paymentStage.value)
+)
+
 const busyMessage = computed(() => {
   if (paymentStage.value === 'preparing') return 'Card verified. Preparing payment…'
-  return 'Payment submitted. Waiting for confirmation from Moov…'
+  if (paymentStage.value === 'card_submitting') return 'Securing your card…'
+  return 'Payment submitted. Confirming with Moov…'
 })
+
+async function goToSuccess() {
+  paymentStage.value = 'paid'
+  stopPolling()
+  // Brief confirmation beat so the transition doesn’t feel like a flash
+  await new Promise((r) => setTimeout(r, 700))
+  await router.replace(`/checkout/success?orderId=${orderId}`)
+}
 
 const displayPaymentStatus = computed(() => {
   if (paymentStage.value === 'paid' || paymentStatus.value === 'paid') return 'Paid'
@@ -503,6 +524,7 @@ const merchantAccountId = ref('')
 const cardReady = ref(false)
 const showCardForm = ref(false)
 const cardLinkRef = ref<any>(null)
+const paymentPanelRef = ref<HTMLElement | null>(null)
 const cardLinkedOnServer = ref(false)
 const isCheckingStatus = ref(false)
 
@@ -757,8 +779,7 @@ async function loadSession() {
     }
 
     if (session.paymentStatus === 'paid') {
-      paymentStage.value = 'paid'
-      await router.push(`/checkout/success?orderId=${orderId}`)
+      await goToSuccess()
       return
     }
 
@@ -868,9 +889,7 @@ async function runCreateTransfer() {
   cardLinkedOnServer.value = true
 
   if (transfer.paymentStatus === 'paid') {
-    paymentStage.value = 'paid'
-    stopPolling()
-    await router.push(`/checkout/success?orderId=${orderId}`)
+    await goToSuccess()
     return
   }
 
@@ -1007,9 +1026,7 @@ async function pollPaymentStatus() {
     await applyStatusPayload(status)
 
     if (status.paymentStatus === 'paid') {
-      paymentStage.value = 'paid'
-      stopPolling()
-      await router.push(`/checkout/success?orderId=${orderId}`)
+      await goToSuccess()
       return
     }
 
@@ -1042,8 +1059,7 @@ async function checkPaymentStatus() {
     await applyStatusPayload(status)
 
     if (status.paymentStatus === 'paid') {
-      paymentStage.value = 'paid'
-      await router.push(`/checkout/success?orderId=${orderId}`)
+      await goToSuccess()
       return
     }
 
@@ -1062,6 +1078,20 @@ async function checkPaymentStatus() {
     isCheckingStatus.value = false
   }
 }
+
+watch(showPaymentOverlay, (active) => {
+  if (!active || !import.meta.client) return
+  nextTick(() => {
+    paymentPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+})
+
+watch(paymentStage, (stage) => {
+  if (stage !== 'paid' || !import.meta.client) return
+  nextTick(() => {
+    paymentPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+})
 
 onMounted(async () => {
   if (import.meta.client) {
@@ -1095,9 +1125,10 @@ useHead({
   border: 1px solid rgba(100, 116, 139, 0.45);
   background: rgba(15, 23, 42, 0.85);
   color: #f8fafc;
-  padding: 0.625rem 0.875rem;
-  font-size: 0.875rem;
+  padding: 0.75rem 0.875rem;
+  font-size: 16px;
   line-height: 1.4;
+  min-height: 44px;
   outline: none;
   transition: border-color 0.15s ease;
 }
@@ -1113,15 +1144,14 @@ useHead({
   box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.08);
   padding: 0.75rem 0.875rem;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .payment-card-drop-shell :deep(moov-card-link) {
   display: block;
   width: 100%;
-  min-height: 120px;
-  max-height: 200px;
-  overflow: hidden;
+  min-height: 140px;
+  overflow: visible;
   color: #f8fafc;
   font-size: 16px;
   line-height: 1.4;
