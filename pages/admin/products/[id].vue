@@ -109,6 +109,11 @@
             />
           </div>
 
+          <AdminProductImageField
+            v-model:image-id="form.imageId"
+            v-model:image-url="form.imageUrl"
+          />
+
           <div class="flex items-center gap-6">
             <label class="flex items-center gap-2 cursor-pointer">
               <input
@@ -286,8 +291,12 @@ const form = ref({
   badgeText: '',
   active: true,
   requiresConfirmation: true,
+  imageId: null as number | null,
+  imageUrl: null as string | null,
   variants: [] as VariantForm[],
 })
+
+const { getStrapiMediaUrl } = useStrapiMedia()
 
 // Track original variants for comparison
 const originalVariantIds = ref<number[]>([])
@@ -303,6 +312,15 @@ const fetchProduct = async () => {
 
     if (product.value) {
       const attrs = product.value.attributes
+      const imageData = attrs.image?.data
+      const imageAttrs = imageData?.attributes
+      const imageUrl =
+        getStrapiMediaUrl(
+          imageAttrs?.formats?.medium?.url ||
+            imageAttrs?.formats?.small?.url ||
+            imageAttrs?.url
+        ) || null
+
       form.value = {
         name: attrs.name,
         slug: attrs.slug,
@@ -311,6 +329,8 @@ const fetchProduct = async () => {
         badgeText: attrs.badgeText || '',
         active: attrs.active,
         requiresConfirmation: attrs.requiresConfirmation,
+        imageId: imageData?.id ?? null,
+        imageUrl,
         variants: (attrs.variants?.data || []).map(v => ({
           id: v.id,
           name: v.attributes.name,
@@ -383,6 +403,7 @@ const handleSubmit = async () => {
         badgeText: form.value.badgeText,
         active: form.value.active,
         requiresConfirmation: form.value.requiresConfirmation,
+        imageId: form.value.imageId,
         variants: form.value.variants,
         variantsToDelete,
       },

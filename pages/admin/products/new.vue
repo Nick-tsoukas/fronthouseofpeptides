@@ -85,6 +85,11 @@
             />
           </div>
 
+          <AdminProductImageField
+            v-model:image-id="form.imageId"
+            v-model:image-url="form.imageUrl"
+          />
+
           <div class="flex items-center gap-6">
             <label class="flex items-center gap-2 cursor-pointer">
               <input
@@ -243,6 +248,8 @@ const form = ref({
   badgeText: 'Research Use Only',
   active: true,
   requiresConfirmation: true,
+  imageId: null as number | null,
+  imageUrl: null as string | null,
   variants: [] as VariantForm[],
 })
 
@@ -314,6 +321,7 @@ const handleSubmit = async () => {
         badgeText: form.value.badgeText,
         active: form.value.active,
         requiresConfirmation: form.value.requiresConfirmation,
+        imageId: form.value.imageId,
         variants: form.value.variants,
       },
     })

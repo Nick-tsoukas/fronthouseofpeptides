@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const response = await $fetch(`${strapiUrl}/api/products/${id}?populate=variants`, {
+    const response = await $fetch(`${strapiUrl}/api/products/${id}?populate[variants]=true&populate[image]=true`, {
       headers,
     })
     return response

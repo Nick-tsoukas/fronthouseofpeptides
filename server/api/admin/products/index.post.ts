@@ -20,6 +20,7 @@ interface ProductInput {
   badgeText?: string
   active?: boolean
   requiresConfirmation?: boolean
+  imageId?: number | null
   variants: VariantInput[]
 }
 
@@ -67,6 +68,7 @@ export default defineEventHandler(async (event) => {
           badgeText: body.badgeText || 'Research Use Only',
           active: body.active ?? true,
           requiresConfirmation: body.requiresConfirmation ?? true,
+          ...(body.imageId !== undefined ? { image: body.imageId } : {}),
         },
       },
     })
