@@ -5,7 +5,7 @@
       class="lg:hidden sticky top-0 z-30 bg-dark-900/95 backdrop-blur border-b border-dark-700 px-4 py-3 flex items-center justify-between pt-[max(0.75rem,env(safe-area-inset-top))]"
     >
       <NuxtLink to="/admin" class="flex items-center gap-2 min-h-[44px]">
-        <div class="w-8 h-8 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-lg"></div>
+        <img src="/icons/icon-192.png" alt="" class="w-8 h-8 rounded-lg" />
         <span class="text-lg font-semibold text-white">Admin</span>
       </NuxtLink>
       <button
@@ -37,7 +37,7 @@
     >
       <div class="h-16 flex items-center justify-between px-5 border-b border-dark-700 shrink-0">
         <NuxtLink to="/admin" class="flex items-center gap-2" @click="sidebarOpen = false">
-          <div class="w-8 h-8 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-lg"></div>
+          <img src="/icons/icon-192.png" alt="" class="w-8 h-8 rounded-lg" />
           <span class="text-lg font-semibold text-white">Admin Panel</span>
         </NuxtLink>
         <button
@@ -132,6 +132,8 @@
     <main class="lg:ml-64 min-h-screen pb-[env(safe-area-inset-bottom)]">
       <slot />
     </main>
+
+    <AdminPwaInstallBanner />
   </div>
 </template>
 
@@ -140,7 +142,24 @@ const route = useRoute()
 const sidebarOpen = ref(false)
 const { logout } = useAdmin()
 
-// Close sidebar on route change (mobile)
+useHead({
+  titleTemplate: (title) => (title ? `${title} · QBP Owner` : 'QBP Owner'),
+  meta: [
+    { name: 'theme-color', content: '#020617' },
+    { name: 'mobile-web-app-capable', content: 'yes' },
+    { name: 'apple-mobile-web-app-capable', content: 'yes' },
+    { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+    { name: 'apple-mobile-web-app-title', content: 'QBP Owner' },
+    { name: 'application-name', content: 'QBP Owner' },
+  ],
+  link: [
+    { rel: 'manifest', href: '/admin.webmanifest' },
+    { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
+    { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icons/favicon-32.png' },
+    { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/icons/favicon-16.png' },
+  ],
+})
+
 watch(() => route.path, () => {
   sidebarOpen.value = false
 })

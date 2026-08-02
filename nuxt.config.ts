@@ -87,7 +87,9 @@ export default defineNuxtConfig({
         { name: 'description', content: 'Premium research-grade peptides for qualified professionals. US shipping only.' }
       ],
       link: [
-        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icons/favicon-32.png' },
+        { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/icons/favicon-16.png' },
+        { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
       ]
     }
   },
