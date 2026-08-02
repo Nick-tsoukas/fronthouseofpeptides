@@ -112,6 +112,7 @@
           <AdminProductImageField
             v-model:image-id="form.imageId"
             v-model:image-url="form.imageUrl"
+            :product-id="Number(productId)"
           />
 
           <div class="flex items-center gap-6">

@@ -63,7 +63,9 @@ export default defineEventHandler(async (event) => {
           badgeText: body.badgeText || 'Research Use Only',
           active: body.active ?? true,
           requiresConfirmation: body.requiresConfirmation ?? true,
-          ...(body.imageId !== undefined ? { image: body.imageId } : {}),
+          ...(body.imageId !== undefined
+            ? { image: body.imageId === null ? null : body.imageId }
+            : {}),
         },
       },
     })

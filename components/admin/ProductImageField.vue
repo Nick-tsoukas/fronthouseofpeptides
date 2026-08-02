@@ -64,6 +64,7 @@
 const props = defineProps<{
   imageId: number | null
   imageUrl: string | null
+  productId?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -96,7 +97,6 @@ async function onFileChange(event: Event) {
     return
   }
 
-  // Instant local preview
   if (localPreview.value?.startsWith('blob:')) {
     URL.revokeObjectURL(localPreview.value)
   }
@@ -106,6 +106,9 @@ async function onFileChange(event: Event) {
   try {
     const body = new FormData()
     body.append('file', file)
+    if (props.productId) {
+      body.append('productId', String(props.productId))
+    }
 
     const res = await $fetch<{ ok: boolean; id: number; url: string | null }>(
       '/api/admin/upload',

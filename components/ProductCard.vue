@@ -80,6 +80,10 @@ const { requireConfirmation } = useCompliance()
 const { getStrapiMediaUrl } = useStrapiMedia()
 
 const imageUrl = computed(() => {
+  // Prefer BFF convenience field (absolute URL)
+  const direct = (props.product.attributes as any).imageUrl
+  if (typeof direct === 'string' && direct) return direct
+
   const raw = props.product.attributes.image?.data?.attributes
   const url = raw?.formats?.medium?.url || raw?.formats?.small?.url || raw?.url
   return getStrapiMediaUrl(url)

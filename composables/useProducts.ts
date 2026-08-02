@@ -1,25 +1,19 @@
-import type { Product, StrapiResponse } from '~/types'
+import type { Product } from '~/types'
 import { mockProducts } from '~/data/mockProducts'
 
 // Set to true to use mock data (no backend required)
 const USE_MOCK_DATA = false
 
 export function useProducts() {
-  const config = useRuntimeConfig()
-  const strapiUrl = config.public.strapiUrl
-
   const fetchProducts = async (): Promise<Product[]> => {
-    // Use mock data for demo/MVP
     if (USE_MOCK_DATA) {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 300))
-      return mockProducts.filter(p => p.attributes.active)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      return mockProducts.filter((p) => p.attributes.active)
     }
 
     try {
-      const response = await $fetch<StrapiResponse<Product[]>>(
-        `${strapiUrl}/api/products?filters[active][$eq]=true&populate[variants]=*&populate[image]=*`
-      )
+      // BFF: server uses Strapi token and returns absolute image URLs
+      const response = await $fetch<{ ok: boolean; data: Product[] }>('/api/products')
       return response.data || []
     } catch (error) {
       console.error('Error fetching products:', error)
@@ -28,17 +22,16 @@ export function useProducts() {
   }
 
   const fetchProductBySlug = async (slug: string): Promise<Product | null> => {
-    // Use mock data for demo/MVP
     if (USE_MOCK_DATA) {
-      await new Promise(resolve => setTimeout(resolve, 200))
-      return mockProducts.find(p => p.attributes.slug === slug) || null
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      return mockProducts.find((p) => p.attributes.slug === slug) || null
     }
 
     try {
-      const response = await $fetch<StrapiResponse<Product[]>>(
-        `${strapiUrl}/api/products?filters[slug][$eq]=${slug}&filters[active][$eq]=true&populate[variants]=*&populate[image]=*`
-      )
-      return response.data?.[0] || null
+      const response = await $fetch<{ ok: boolean; data: Product | null }>('/api/products/by-slug', {
+        query: { slug },
+      })
+      return response.data || null
     } catch (error) {
       console.error('Error fetching product:', error)
       return null

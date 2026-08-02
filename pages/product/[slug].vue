@@ -187,6 +187,8 @@ const quantity = ref(1)
 
 // ── Image ────────────────────────────────────────────────────────────────────
 const imageUrl = computed(() => {
+  const direct = (product.value?.attributes as any)?.imageUrl
+  if (typeof direct === 'string' && direct) return direct
   const raw = product.value?.attributes.image?.data?.attributes
   const url = raw?.formats?.large?.url || raw?.formats?.medium?.url || raw?.url
   return getStrapiMediaUrl(url)

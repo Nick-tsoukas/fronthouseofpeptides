@@ -18,7 +18,7 @@ import { useCartStore } from '~/stores/cart'
 const { fetchProducts } = useProducts()
 const cartStore = useCartStore()
 
-const { data: products, pending } = await useAsyncData('products', fetchProducts)
+const { data: products, pending } = await useAsyncData('storefront-products-v2', fetchProducts)
 
 // Load cart from localStorage on mount
 onMounted(() => {
