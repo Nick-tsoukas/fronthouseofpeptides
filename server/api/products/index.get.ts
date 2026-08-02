@@ -1,12 +1,25 @@
 /**
  * GET /api/products
  * Public storefront product list (server-side Strapi token + absolute image URLs).
+ *
+ * Resilience:
+ * - Prefer field/relation populate that Strapi accepts
+ * - Fall back to populate=* if needed
+ * - Never throw away a successful product list because of image mapping
  */
 import { mapStorefrontProduct } from '~/server/utils/storefrontProducts'
 
+async function fetchStrapiProducts(
+  strapiUrl: string,
+  headers: Record<string, string>,
+  query: string
+) {
+  return await $fetch<{ data: any[] }>(`${strapiUrl}/api/products?${query}`, { headers })
+}
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
-  const strapiUrl = (config.public.strapiUrl as string) || ''
+  const strapiUrl = String(config.public.strapiUrl || '').replace(/\/$/, '')
   const strapiToken = config.strapiToken as string
 
   if (!strapiUrl) {
@@ -20,29 +33,71 @@ export default defineEventHandler(async (event) => {
     headers.Authorization = `Bearer ${strapiToken}`
   }
 
-  const params = new URLSearchParams()
-  params.set('filters[active][$eq]', 'true')
-  params.set('populate[image]', 'true')
-  params.set('populate[variants]', 'true')
-  params.set('sort', 'name:asc')
-  params.set('pagination[pageSize]', '100')
+  // Proven storefront query (this is what worked before the image BFF change)
+  const primary = new URLSearchParams()
+  primary.set('filters[active][$eq]', 'true')
+  primary.set('populate[variants]', '*')
+  primary.set('populate[image]', '*')
+  primary.set('sort', 'name:asc')
+  primary.set('pagination[pageSize]', '100')
 
-  try {
-    const response = await $fetch<{ data: any[] }>(
-      `${strapiUrl}/api/products?${params.toString()}`,
-      { headers }
-    )
+  // Alternate populate style used elsewhere in admin/owner
+  const secondary = new URLSearchParams()
+  secondary.set('filters[active][$eq]', 'true')
+  secondary.set('populate[variants]', 'true')
+  secondary.set('populate[image][fields][0]', 'url')
+  secondary.set('populate[image][fields][1]', 'formats')
+  secondary.set('populate[image][fields][2]', 'alternativeText')
+  secondary.set('sort', 'name:asc')
+  secondary.set('pagination[pageSize]', '100')
 
-    const products = (response.data || []).map((entry) =>
-      mapStorefrontProduct(strapiUrl, entry)
-    )
+  let response: { data: any[] } | null = null
+  let lastError: any = null
 
-    return { ok: true, data: products }
-  } catch (err: any) {
-    console.error('[api/products] fetch failed:', err?.message || err)
+  for (const qs of [primary.toString(), secondary.toString()]) {
+    try {
+      response = await fetchStrapiProducts(strapiUrl, headers, qs)
+      lastError = null
+      break
+    } catch (err: any) {
+      lastError = err
+      console.error(
+        '[api/products] Strapi query failed:',
+        err?.statusCode || err?.response?.status || '',
+        err?.message || err
+      )
+    }
+  }
+
+  if (!response) {
     throw createError({
       statusCode: 502,
-      message: 'Failed to load products.',
+      message: 'Failed to load products from Strapi.',
+      data: {
+        detail: String(lastError?.message || 'unknown').slice(0, 300),
+      },
     })
+  }
+
+  const products = (response.data || []).map((entry) => {
+    try {
+      return mapStorefrontProduct(strapiUrl, entry)
+    } catch (mapErr: any) {
+      console.error('[api/products] mapStorefrontProduct failed for id=', entry?.id, mapErr?.message || mapErr)
+      // Keep product visible even if image normalization fails
+      return {
+        id: entry.id,
+        attributes: {
+          ...(entry.attributes || {}),
+          imageUrl: null,
+        },
+      }
+    }
+  })
+
+  return {
+    ok: true,
+    data: products,
+    meta: { count: products.length },
   }
 })

@@ -69,6 +69,7 @@ import type { Product } from '~/types'
 import { useCartStore } from '~/stores/cart'
 import { useCompliance } from '~/composables/useCompliance'
 import { useStrapiMedia } from '~/composables/useStrapiMedia'
+import { getProductImageFallback } from '~/utils/productImageFallbacks'
 import { CURRENCY } from '~/constants'
 
 const props = defineProps<{
@@ -80,13 +81,13 @@ const { requireConfirmation } = useCompliance()
 const { getStrapiMediaUrl } = useStrapiMedia()
 
 const imageUrl = computed(() => {
-  // Prefer BFF convenience field (absolute URL)
+  // Prefer BFF convenience field (absolute or same-origin URL)
   const direct = (props.product.attributes as any).imageUrl
   if (typeof direct === 'string' && direct) return direct
 
   const raw = props.product.attributes.image?.data?.attributes
   const url = raw?.formats?.medium?.url || raw?.formats?.small?.url || raw?.url
-  return getStrapiMediaUrl(url)
+  return getStrapiMediaUrl(url) || getProductImageFallback(props.product.attributes.slug)
 })
 
 // Generate a consistent gradient based on product id

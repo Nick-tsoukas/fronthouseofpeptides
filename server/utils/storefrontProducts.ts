@@ -1,5 +1,8 @@
+import { getProductImageFallback } from '~/utils/productImageFallbacks'
+
 /**
  * Normalize Strapi media URL to absolute.
+ * Same-origin public paths (not /uploads) are left as-is for the storefront.
  */
 export function absoluteStrapiMediaUrl(
   strapiUrl: string,
@@ -7,6 +10,9 @@ export function absoluteStrapiMediaUrl(
 ): string | null {
   if (!url) return null
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url
+  }
+  if (url.startsWith('/') && !url.startsWith('/uploads')) {
     return url
   }
   const base = strapiUrl.replace(/\/$/, '')
@@ -47,51 +53,66 @@ export function extractProductImageUrl(strapiUrl: string, productEntry: any): st
 
 /**
  * Map a Strapi product entry into storefront-friendly shape with absolute imageUrl.
+ * Must never throw for missing/null images.
  */
 export function mapStorefrontProduct(strapiUrl: string, entry: any) {
   const attrs = entry?.attributes || {}
-  const imageUrl = extractProductImageUrl(strapiUrl, entry)
-  const imageData = attrs.image?.data
+  let imageUrl: string | null = null
+  try {
+    imageUrl = extractProductImageUrl(strapiUrl, entry)
+  } catch {
+    imageUrl = null
+  }
 
-  // Keep Strapi shape for existing components, but ensure nested URL is absolute
-  let image = attrs.image
-  if (imageData?.attributes?.url) {
-    const abs = absoluteStrapiMediaUrl(strapiUrl, imageData.attributes.url)
-    const formats = imageData.attributes.formats
-      ? Object.fromEntries(
-          Object.entries(imageData.attributes.formats).map(([key, fmt]: [string, any]) => [
-            key,
-            fmt && typeof fmt === 'object'
-              ? { ...fmt, url: absoluteStrapiMediaUrl(strapiUrl, fmt.url) || fmt.url }
-              : fmt,
-          ])
-        )
-      : imageData.attributes.formats
+  if (!imageUrl) {
+    imageUrl = getProductImageFallback(attrs.slug)
+  }
 
-    image = {
-      data: {
-        id: imageData.id,
-        attributes: {
-          ...imageData.attributes,
-          url: abs || imageData.attributes.url,
-          formats,
+  const imageData = attrs.image?.data && attrs.image.data !== null ? attrs.image.data : null
+
+  let image = attrs.image ?? { data: null }
+
+  try {
+    if (imageData?.attributes?.url) {
+      const abs = absoluteStrapiMediaUrl(strapiUrl, imageData.attributes.url)
+      const formats = imageData.attributes.formats
+        ? Object.fromEntries(
+            Object.entries(imageData.attributes.formats).map(([key, fmt]: [string, any]) => [
+              key,
+              fmt && typeof fmt === 'object'
+                ? { ...fmt, url: absoluteStrapiMediaUrl(strapiUrl, fmt.url) || fmt.url }
+                : fmt,
+            ])
+          )
+        : imageData.attributes.formats
+
+      image = {
+        data: {
+          id: imageData.id,
+          attributes: {
+            ...imageData.attributes,
+            url: abs || imageData.attributes.url,
+            formats,
+          },
         },
-      },
-    }
-  } else if (imageUrl && !imageData) {
-    // Flat / unexpected shape — synthesize v4-like structure for ProductCard
-    image = {
-      data: {
-        id: attrs.image?.id || 0,
-        attributes: {
-          url: imageUrl,
-          alternativeText: null,
-          width: 0,
-          height: 0,
-          formats: null,
+      }
+    } else if (imageUrl) {
+      image = {
+        data: {
+          id: imageData?.id || attrs.image?.id || 0,
+          attributes: {
+            url: imageUrl,
+            alternativeText: attrs.name || null,
+            width: 0,
+            height: 0,
+            formats: null,
+          },
         },
-      },
+      }
     }
+  } catch {
+    // Keep original image relation if normalization fails
+    image = attrs.image ?? { data: null }
   }
 
   return {
@@ -99,7 +120,6 @@ export function mapStorefrontProduct(strapiUrl: string, entry: any) {
     attributes: {
       ...attrs,
       image,
-      // Convenience field used by hardened ProductCard
       imageUrl,
     },
   }

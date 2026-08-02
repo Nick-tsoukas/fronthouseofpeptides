@@ -168,6 +168,7 @@ import { useCartStore } from '~/stores/cart'
 import { useCompliance } from '~/composables/useCompliance'
 import { useStrapiMedia } from '~/composables/useStrapiMedia'
 import { CURRENCY, CART } from '~/constants'
+import { getProductImageFallback } from '~/utils/productImageFallbacks'
 
 const route = useRoute()
 const { fetchProductBySlug } = useProducts()
@@ -191,7 +192,10 @@ const imageUrl = computed(() => {
   if (typeof direct === 'string' && direct) return direct
   const raw = product.value?.attributes.image?.data?.attributes
   const url = raw?.formats?.large?.url || raw?.formats?.medium?.url || raw?.url
-  return getStrapiMediaUrl(url)
+  return (
+    getStrapiMediaUrl(url) ||
+    getProductImageFallback(product.value?.attributes.slug || slug.value)
+  )
 })
 
 const gradientStyle = computed(() => {

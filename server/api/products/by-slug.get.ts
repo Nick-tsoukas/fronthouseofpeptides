@@ -6,7 +6,7 @@ import { mapStorefrontProduct } from '~/server/utils/storefrontProducts'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
-  const strapiUrl = (config.public.strapiUrl as string) || ''
+  const strapiUrl = String(config.public.strapiUrl || '').replace(/\/$/, '')
   const strapiToken = config.strapiToken as string
   const query = getQuery(event)
   const slug = String(query.slug || '').trim()
@@ -22,28 +22,67 @@ export default defineEventHandler(async (event) => {
     headers.Authorization = `Bearer ${strapiToken}`
   }
 
-  const params = new URLSearchParams()
-  params.set('filters[slug][$eq]', slug)
-  params.set('filters[active][$eq]', 'true')
-  params.set('populate[image]', 'true')
-  params.set('populate[variants]', 'true')
-  params.set('pagination[pageSize]', '1')
+  const attempts = [
+    (() => {
+      const p = new URLSearchParams()
+      p.set('filters[slug][$eq]', slug)
+      p.set('filters[active][$eq]', 'true')
+      p.set('populate[variants]', '*')
+      p.set('populate[image]', '*')
+      p.set('pagination[pageSize]', '1')
+      return p.toString()
+    })(),
+    (() => {
+      const p = new URLSearchParams()
+      p.set('filters[slug][$eq]', slug)
+      p.set('filters[active][$eq]', 'true')
+      p.set('populate[variants]', 'true')
+      p.set('populate[image][fields][0]', 'url')
+      p.set('populate[image][fields][1]', 'formats')
+      p.set('pagination[pageSize]', '1')
+      return p.toString()
+    })(),
+  ]
 
-  try {
-    const response = await $fetch<{ data: any[] }>(
-      `${strapiUrl}/api/products?${params.toString()}`,
-      { headers }
-    )
-    const entry = response.data?.[0]
-    if (!entry) {
-      return { ok: true, data: null }
+  let response: { data: any[] } | null = null
+  let lastError: any = null
+
+  for (const qs of attempts) {
+    try {
+      response = await $fetch<{ data: any[] }>(`${strapiUrl}/api/products?${qs}`, { headers })
+      lastError = null
+      break
+    } catch (err: any) {
+      lastError = err
+      console.error('[api/products/by-slug] Strapi query failed:', err?.message || err)
     }
-    return { ok: true, data: mapStorefrontProduct(strapiUrl, entry) }
-  } catch (err: any) {
-    console.error('[api/products/by-slug] fetch failed:', err?.message || err)
+  }
+
+  if (!response) {
     throw createError({
       statusCode: 502,
       message: 'Failed to load product.',
+      data: { detail: String(lastError?.message || 'unknown').slice(0, 300) },
     })
+  }
+
+  const entry = response.data?.[0]
+  if (!entry) {
+    return { ok: true, data: null }
+  }
+
+  try {
+    return { ok: true, data: mapStorefrontProduct(strapiUrl, entry) }
+  } catch {
+    return {
+      ok: true,
+      data: {
+        id: entry.id,
+        attributes: {
+          ...(entry.attributes || {}),
+          imageUrl: null,
+        },
+      },
+    }
   }
 })
