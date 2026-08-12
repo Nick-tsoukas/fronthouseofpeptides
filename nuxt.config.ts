@@ -54,6 +54,8 @@ export default defineNuxtConfig({
     // Shippo (server-only — never expose in public)
     shippoApiToken: process.env.SHIPPO_API_TOKEN || '',
     shippoMode: process.env.SHIPPO_MODE || 'test',
+    // Comma-separated carrier allowlist for checkout rates (default: usps)
+    shippoAllowedCarriers: process.env.SHIPPO_ALLOWED_CARRIERS || 'usps',
     shippingFromName: process.env.SHIPPING_FROM_NAME || '',
     shippingFromCompany: process.env.SHIPPING_FROM_COMPANY || '',
     shippingFromStreet1: process.env.SHIPPING_FROM_STREET1 || '',

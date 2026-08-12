@@ -774,9 +774,7 @@ async function selectShippingRate() {
 function continueToPayment() {
   if (!canContinueToPayment.value || !pendingOrderId.value) return
 
-  // Cart is no longer needed once shipping is selected and payment begins.
-  cartStore.clearCart()
-
+  // Keep cart until payment succeeds so back-navigation from payment still works.
   // Prefer cookie-backed session; only pass orderId (no plaintext token in URL).
   router.push(`/checkout/payment?orderId=${pendingOrderId.value}`)
 }

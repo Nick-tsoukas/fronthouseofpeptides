@@ -46,8 +46,40 @@
       </p>
     </div>
 
-    <div v-else class="bg-dark-900 rounded-xl border border-dark-700 overflow-hidden">
-      <div class="overflow-x-auto">
+    <div v-else class="space-y-3 md:space-y-0 md:bg-dark-900 md:rounded-xl md:border md:border-dark-700 md:overflow-hidden">
+      <!-- Mobile: stacked cards -->
+      <div class="md:hidden space-y-3">
+        <NuxtLink
+          v-for="order in orders"
+          :key="order.id"
+          :to="`/admin/orders/${order.id}`"
+          class="block bg-dark-900 rounded-xl border border-dark-700 p-4 active:bg-dark-800 transition-colors"
+        >
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div class="min-w-0">
+              <p class="text-white font-medium font-mono text-sm truncate">{{ order.orderNumber || `#${order.id}` }}</p>
+              <p class="text-dark-400 text-sm truncate">{{ order.customerName }}</p>
+              <p class="text-dark-500 text-xs truncate">{{ order.email }}</p>
+            </div>
+            <span :class="badgeClass(order.paymentStatus)">{{ order.paymentStatus || '—' }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 text-sm">
+            <div class="text-dark-400">
+              <p>{{ order.shippingStatus || '—' }}</p>
+              <p class="text-xs mt-0.5">{{ formatDate(order.createdAt) }}</p>
+            </div>
+            <p class="text-white font-semibold shrink-0">{{ formatCents(order.totalCents) }}</p>
+          </div>
+          <div class="mt-3">
+            <span class="inline-flex min-h-[44px] items-center justify-center px-4 rounded-xl bg-dark-700 text-white text-sm font-medium">
+              View order
+            </span>
+          </div>
+        </NuxtLink>
+      </div>
+
+      <!-- Desktop: table -->
+      <div class="hidden md:block overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-dark-700">
@@ -87,7 +119,7 @@
               <td class="px-4 py-3 text-right">
                 <NuxtLink
                   :to="`/admin/orders/${order.id}`"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-lg transition-colors"
+                  class="inline-flex min-h-[44px] items-center gap-1 px-3 py-2 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   View
                 </NuxtLink>

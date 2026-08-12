@@ -4,6 +4,8 @@ import {
   getShippoConfig,
   shippoFetch,
   sanitizeRate,
+  getAllowedShippoCarriers,
+  isAllowedShippoCarrier,
   type ShippoRate,
   type ShippoShipment,
 } from '~/server/utils/shippo'
@@ -78,7 +80,19 @@ export default defineEventHandler(async (event: H3Event) => {
     throw createError({ statusCode: 400, message: 'Only USD shipping rates are supported.' })
   }
 
-  const safeRate = sanitizeRate(selectedRate)
+  const allowedCarriers = getAllowedShippoCarriers({
+    shippoAllowedCarriers: String((config as any).shippoAllowedCarriers || ''),
+  })
+  if (!isAllowedShippoCarrier(selectedRate, allowedCarriers)) {
+    throw createError({
+      statusCode: 400,
+      message: 'Selected shipping carrier is not available for checkout.',
+    })
+  }
+
+  const shippoMode = String(config.public?.shippoMode || config.shippoMode || 'test').toLowerCase()
+  const testMode = shippoMode !== 'live' && shippoMode !== 'production'
+  const safeRate = sanitizeRate(selectedRate, { testMode })
   const shippingCostCents = safeRate.amountCents
   const subtotalCents = Number(attrs.subtotalCents) || 0
   const taxCents = Number(attrs.taxCents) || 0

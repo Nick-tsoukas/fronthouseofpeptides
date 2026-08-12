@@ -420,6 +420,7 @@ const MOOV_INPUT_STYLE = {
 const route = useRoute()
 const router = useRouter()
 const config = useRuntimeConfig()
+const cartStore = useCartStore()
 
 const orderId = Number(route.query.orderId)
 const orderNumber = ref('')
@@ -477,6 +478,12 @@ const busyMessage = computed(() => {
 async function goToSuccess() {
   paymentStage.value = 'paid'
   stopPolling()
+  // Clear cart only after server confirms paid (not when leaving shipping).
+  try {
+    cartStore.clearCart()
+  } catch {
+    // non-fatal
+  }
   // Brief confirmation beat so the transition doesn’t feel like a flash
   await new Promise((r) => setTimeout(r, 700))
   await router.replace(`/checkout/success?orderId=${orderId}`)

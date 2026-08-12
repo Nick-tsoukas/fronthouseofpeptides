@@ -202,7 +202,35 @@ export function toCentsFromDecimal(amount: string): number {
   return Number(dollars) * 100 + Number(normalizedCents)
 }
 
-export function sanitizeRate(rate: ShippoRate): {
+/**
+ * Carriers offered to customers at checkout.
+ * Override with SHIPPO_ALLOWED_CARRIERS=usps,ups (comma-separated, case-insensitive).
+ * Default is USPS only — matches the activated Shippo carrier in production.
+ */
+export function getAllowedShippoCarriers(config?: { shippoAllowedCarriers?: string }): string[] {
+  const raw =
+    (config?.shippoAllowedCarriers && String(config.shippoAllowedCarriers).trim()) ||
+    process.env.SHIPPO_ALLOWED_CARRIERS ||
+    'usps'
+  return raw
+    .split(',')
+    .map((c) => c.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+export function isAllowedShippoCarrier(
+  rate: Pick<ShippoRate, 'provider' | 'carrier'>,
+  allowed: string[]
+): boolean {
+  if (!allowed.length) return true
+  const carrier = String(rate.provider || rate.carrier || '')
+    .trim()
+    .toLowerCase()
+  if (!carrier) return false
+  return allowed.some((a) => carrier === a || carrier.includes(a) || a.includes(carrier))
+}
+
+export function sanitizeRate(rate: ShippoRate, opts?: { testMode?: boolean }): {
   rateId: string
   carrier: string
   service: string
@@ -220,7 +248,7 @@ export function sanitizeRate(rate: ShippoRate): {
     amountCents: toCentsFromDecimal(rate.amount),
     currency: rate.currency,
     deliveryDays: rate.estimated_days ?? null,
-    test: true,
+    test: opts?.testMode ?? Boolean((rate as any).test),
   }
 }
 

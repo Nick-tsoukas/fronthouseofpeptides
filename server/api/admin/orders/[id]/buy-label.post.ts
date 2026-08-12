@@ -253,9 +253,11 @@ export default defineEventHandler(async (event) => {
               .join('; ') || 'Shippo returned an error creating the label.'
           )
 
+        // Clear failed transaction id so Retry can purchase a new label (not refresh ERROR forever).
         await patchOrder(strapiUrl, headers, orderId, {
           shippingStatus: 'label_failed',
           labelErrorMessage: errorMessage,
+          shippoTransactionId: null,
         })
 
         logBuyLabelDiagnostics({
@@ -356,7 +358,8 @@ export default defineEventHandler(async (event) => {
     )
   }
 
-  const allowedStatuses = ['selected', 'ready_to_ship', 'label_failed']
+  // Recover stuck label_purchasing when no transaction was persisted (pre-fix / save failure).
+  const allowedStatuses = ['selected', 'ready_to_ship', 'label_failed', 'label_purchasing']
   if (!allowedStatuses.includes(attrs.shippingStatus)) {
     logBuyLabelDiagnostics({ ...baseLog, step: 'invalid_shipping_status', ok: false })
     return safeFail(
@@ -368,6 +371,7 @@ export default defineEventHandler(async (event) => {
       testMode
     )
   }
+  // label_purchasing with a transaction id is handled above via refresh — never reach here with an id.
 
   const shippoConfig = getShippoConfig(event)
   if (!shippoConfig.apiToken) {
@@ -433,6 +437,37 @@ export default defineEventHandler(async (event) => {
       shippingStatus: 'label_purchased',
       labelErrorMessage: null,
     }
+
+    // Persist transaction id first so retries are idempotent even if the full patch fails.
+    const idSaved = await patchOrder(strapiUrl, headers, orderId, {
+      shippoTransactionId: result.transactionId,
+      shippingStatus: 'label_purchasing',
+    })
+    if (!idSaved.ok) {
+      logBuyLabelDiagnostics({
+        ...baseLog,
+        step: 'strapi_label_save',
+        ok: false,
+        schemaMissing: idSaved.schemaMissing,
+        shippoTransactionStatus: status,
+        phase: 'transaction_id_only',
+      })
+      setResponseStatus(event, 502)
+      return {
+        ok: false,
+        step: 'strapi_label_save',
+        message: idSaved.schemaMissing
+          ? strapiSchemaMessage()
+          : 'Shippo created the label, but saving the transaction id to Strapi failed. Do not buy again until Strapi is fixed — print using the URL below if available.',
+        detail: testMode ? idSaved.detail : undefined,
+        shippoTransactionId: result.transactionId,
+        shippingLabelUrl: result.labelUrl,
+        trackingNumber: result.trackingNumber,
+        trackingUrl: result.trackingUrl,
+        shippingStatus: 'label_purchased',
+      }
+    }
+
     const saved = await patchOrder(strapiUrl, headers, orderId, patch)
     if (!saved.ok) {
       logBuyLabelDiagnostics({
@@ -441,15 +476,16 @@ export default defineEventHandler(async (event) => {
         ok: false,
         schemaMissing: saved.schemaMissing,
         shippoTransactionStatus: status,
+        phase: 'full_patch',
       })
-      // Label was purchased at Shippo — return it so admin can still print; flag Strapi failure
+      // Transaction id is saved — next Buy Label will refresh, not repurchase.
       setResponseStatus(event, 502)
       return {
         ok: false,
         step: 'strapi_label_save',
         message: saved.schemaMissing
           ? strapiSchemaMessage()
-          : 'Shippo created the label, but saving it to Strapi failed. Redeploy Strapi and click Buy Shipping Label again to refresh (no duplicate purchase if transaction id is saved).',
+          : 'Shippo created the label and the transaction id was saved. Click Buy Shipping Label again to refresh label fields from Shippo (no duplicate purchase).',
         detail: testMode ? saved.detail : undefined,
         shippoTransactionId: result.transactionId,
         shippingLabelUrl: result.labelUrl,

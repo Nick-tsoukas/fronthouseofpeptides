@@ -5,6 +5,8 @@ import {
   assertShippoFromAddress,
   shippoFetch,
   sanitizeRate,
+  getAllowedShippoCarriers,
+  isAllowedShippoCarrier,
   type ShippoAddress,
   type ShippoShipment,
   type ShippoRate,
@@ -216,12 +218,22 @@ export default defineEventHandler(async (event: H3Event) => {
   }
 
   const rates: ShippoRate[] = shipment.rates || []
+  const allowedCarriers = getAllowedShippoCarriers({
+    shippoAllowedCarriers: String((config as any).shippoAllowedCarriers || ''),
+  })
+  const shippoMode = String(config.public?.shippoMode || config.shippoMode || 'test').toLowerCase()
+  const testMode = shippoMode !== 'live' && shippoMode !== 'production'
+
   const safeRates = rates
     .filter((rate) => rate.currency === 'USD')
-    .map((rate) => sanitizeRate(rate))
+    .filter((rate) => isAllowedShippoCarrier(rate, allowedCarriers))
+    .map((rate) => sanitizeRate(rate, { testMode }))
 
   if (safeRates.length === 0) {
-    throw createError({ statusCode: 400, message: 'No valid shipping rates were found for this address.' })
+    throw createError({
+      statusCode: 400,
+      message: 'No valid shipping rates were found for this address.',
+    })
   }
 
   // Store the Shippo IDs and set status to quoted

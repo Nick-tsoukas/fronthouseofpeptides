@@ -335,31 +335,37 @@ export default defineEventHandler(async (event: H3Event) => {
   // ── Set secure checkout session cookie ──────────────────────────────────
   setCheckoutSessionCookie(event, checkoutSessionToken)
 
-  // ── Create Order Item records ───────────────────────────────────────────
-  await Promise.all(
-    lineItems.map((item) =>
-      $fetch(`${strapiUrl}/api/order-items`, {
-        method: 'POST',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
-        body: {
-          data: {
-            productNameSnapshot: item.product.attributes?.name || '',
-            variantNameSnapshot: item.variant.attributes?.name || '',
-            skuSnapshot: item.variant.attributes?.sku || '',
-            unitPriceSnapshot: item.unitPrice,
-            unitPriceCents: item.unitPriceCents,
-            lineTotalCents: item.lineTotalCents,
-            quantity: item.quantity,
-            order: orderId,
-            product: item.product.id,
-            variant: item.variant.id,
+  // ── Create Order Item records (must succeed — empty orders cannot be charged) ─
+  try {
+    await Promise.all(
+      lineItems.map((item) =>
+        $fetch(`${strapiUrl}/api/order-items`, {
+          method: 'POST',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+          body: {
+            data: {
+              productNameSnapshot: item.product.attributes?.name || '',
+              variantNameSnapshot: item.variant.attributes?.name || '',
+              skuSnapshot: item.variant.attributes?.sku || '',
+              unitPriceSnapshot: item.unitPrice,
+              unitPriceCents: item.unitPriceCents,
+              lineTotalCents: item.lineTotalCents,
+              quantity: item.quantity,
+              order: orderId,
+              product: item.product.id,
+              variant: item.variant.id,
+            },
           },
-        },
-      }).catch((err: any) => {
-        console.error('Order item creation failed:', err?.message || err)
-      })
+        })
+      )
     )
-  )
+  } catch (err: any) {
+    console.error('Order item creation failed:', err?.message || err)
+    throw createError({
+      statusCode: 502,
+      message: 'Failed to create order line items. Please try again.',
+    })
+  }
 
   return {
     ok: true,
