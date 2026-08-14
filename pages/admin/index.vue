@@ -16,7 +16,17 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="mb-6 rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <p class="text-dark-300 text-sm">
+        Enable owner push alerts in Settings so your phone pings on paid orders and low stock.
+      </p>
+      <NuxtLink
+        to="/admin/settings"
+        class="inline-flex min-h-[44px] items-center justify-center px-4 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold shrink-0"
+      >
+        Notification settings
+      </NuxtLink>
+    </div>
       <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-white">Quick links</h2>

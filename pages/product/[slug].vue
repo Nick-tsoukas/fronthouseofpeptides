@@ -35,13 +35,14 @@
         <!-- Product Image -->
         <div class="relative aspect-[4/3] sm:aspect-square rounded-xl overflow-hidden">
           <img
-            v-if="imageUrl"
+            v-if="imageUrl && !imageBroken"
             :src="imageUrl"
             :alt="product.attributes.name"
             class="absolute inset-0 w-full h-full object-cover"
+            @error="imageBroken = true"
           />
           <div
-            v-else
+            v-if="!imageUrl || imageBroken"
             class="absolute inset-0"
             :style="{ background: gradientStyle }"
           ></div>
@@ -166,15 +167,13 @@ import type { Variant } from '~/types'
 import { useProducts } from '~/composables/useProducts'
 import { useCartStore } from '~/stores/cart'
 import { useCompliance } from '~/composables/useCompliance'
-import { useStrapiMedia } from '~/composables/useStrapiMedia'
 import { CURRENCY, CART } from '~/constants'
-import { getProductImageFallback } from '~/utils/productImageFallbacks'
+import { getProductImage } from '~/utils/getProductImage'
 
 const route = useRoute()
 const { fetchProductBySlug } = useProducts()
 const cartStore = useCartStore()
 const { requireConfirmation } = useCompliance()
-const { getStrapiMediaUrl } = useStrapiMedia()
 
 const slug = computed(() => route.params.slug as string)
 
@@ -187,15 +186,11 @@ const selectedVariant = ref<Variant | null>(null)
 const quantity = ref(1)
 
 // ── Image ────────────────────────────────────────────────────────────────────
-const imageUrl = computed(() => {
-  const direct = (product.value?.attributes as any)?.imageUrl
-  if (typeof direct === 'string' && direct) return direct
-  const raw = product.value?.attributes.image?.data?.attributes
-  const url = raw?.formats?.large?.url || raw?.formats?.medium?.url || raw?.url
-  return (
-    getStrapiMediaUrl(url) ||
-    getProductImageFallback(product.value?.attributes.slug || slug.value)
-  )
+const imageUrl = computed(() => getProductImage(product.value).url)
+const imageBroken = ref(false)
+
+watch(imageUrl, () => {
+  imageBroken.value = false
 })
 
 const gradientStyle = computed(() => {
@@ -262,6 +257,7 @@ const handleAddToCart = () => {
       variantName: selectedVariant.value!.attributes.name,
       sku: selectedVariant.value!.attributes.sku,
       unitPrice: selectedVariant.value!.attributes.price,
+      imageUrl: imageUrl.value || null,
     }, quantity.value)
   })
 }

@@ -27,9 +27,24 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const response = await $fetch(`${strapiUrl}/api/products/${id}?populate[variants]=true&populate[image]=true`, {
+    const response = await $fetch<any>(`${strapiUrl}/api/products/${id}?populate[variants]=true&populate[image]=true`, {
       headers,
     })
+    const entry = response?.data
+    if (entry?.id) {
+      const attrs = entry.attributes || {}
+      const hasUpload = Boolean(attrs.image?.data)
+      const generatedPath = `/product-images/generated/product-${entry.id}.svg`
+      entry.attributes = {
+        ...attrs,
+        generatedImageUrl: attrs.generatedImageUrl || generatedPath,
+        imageSource: hasUpload
+          ? 'uploaded'
+          : (attrs.generatedImageUrl || generatedPath)
+            ? 'generated'
+            : 'placeholder',
+      }
+    }
     return response
   } catch (error: any) {
     console.error('Error fetching product:', error)

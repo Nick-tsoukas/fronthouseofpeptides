@@ -37,6 +37,9 @@ export interface Product {
     image?: {
       data: StrapiMedia | null
     }
+    imageUrl?: string | null
+    generatedImageUrl?: string | null
+    imageSource?: 'uploaded' | 'generated' | 'placeholder'
     variants?: {
       data: Variant[]
     }
@@ -64,6 +67,7 @@ export interface CartItem {
   sku: string
   unitPrice: number
   quantity: number
+  imageUrl?: string | null
 }
 
 export interface Order {

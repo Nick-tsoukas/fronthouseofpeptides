@@ -88,6 +88,8 @@
           <AdminProductImageField
             v-model:image-id="form.imageId"
             v-model:image-url="form.imageUrl"
+            v-model:generated-image-url="form.generatedImageUrl"
+            v-model:image-source="form.imageSource"
           />
 
           <div class="flex items-center gap-6">
@@ -250,6 +252,8 @@ const form = ref({
   requiresConfirmation: true,
   imageId: null as number | null,
   imageUrl: null as string | null,
+  generatedImageUrl: null as string | null,
+  imageSource: 'placeholder' as 'uploaded' | 'generated' | 'placeholder',
   variants: [] as VariantForm[],
 })
 

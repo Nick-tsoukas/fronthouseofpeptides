@@ -28,6 +28,9 @@ export const useCartStore = defineStore('cart', {
           CART.MAX_QUANTITY
         )
         this.items[existingIndex].quantity = newQty
+        if (item.imageUrl && !this.items[existingIndex].imageUrl) {
+          this.items[existingIndex].imageUrl = item.imageUrl
+        }
       } else {
         this.items.push({
           ...item,

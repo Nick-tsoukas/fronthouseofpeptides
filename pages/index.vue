@@ -2,7 +2,7 @@
   <div>
     <HeroSection />
     <TrustBar />
-    <ProductGrid id="products" :products="products" :loading="pending" />
+    <ProductGrid id="products" :products="products" :loading="pending" :error="Boolean(productsError)" />
     <LabSection />
     <CategorySection />
     <QualityProcess />

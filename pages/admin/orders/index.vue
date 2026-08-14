@@ -1,29 +1,29 @@
 <template>
-  <div class="p-6 lg:p-8">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+  <div class="px-4 pt-5 pb-6 sm:px-6 lg:p-8">
+    <div class="flex flex-col gap-4 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-white">Orders</h1>
-        <p class="text-dark-400 mt-1">Manage customer and manual orders</p>
+        <p class="text-dark-400 mt-1 text-sm">Find what needs action, then fulfill from your phone.</p>
       </div>
-      <div class="flex flex-col sm:flex-row gap-3">
-        <input
-          v-model="search"
-          type="search"
-          placeholder="Search name, email, order #"
-          class="px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500"
-        />
-        <select
-          v-model="statusFilter"
-          class="px-4 py-2 bg-dark-800 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
+      <input
+        v-model="search"
+        type="search"
+        placeholder="Search name, email, order #"
+        class="w-full min-h-[44px] px-4 bg-dark-800 border border-dark-600 rounded-xl text-white text-base sm:text-sm focus:outline-none focus:border-cyan-500"
+      />
+      <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        <button
+          v-for="f in filters"
+          :key="f.value"
+          type="button"
+          class="shrink-0 min-h-[40px] px-3.5 rounded-full text-sm font-medium border transition-colors"
+          :class="statusFilter === f.value
+            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+            : 'bg-dark-900 text-dark-400 border-dark-700'"
+          @click="statusFilter = f.value"
         >
-          <option value="all">All</option>
-          <option value="pending">Pending</option>
-          <option value="processing">Processing</option>
-          <option value="paid">Paid</option>
-          <option value="failed">Failed</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="shipped">Shipped</option>
-        </select>
+          {{ f.label }}
+        </button>
       </div>
     </div>
 
@@ -42,40 +42,37 @@
     <div v-else-if="orders.length === 0" class="bg-dark-900 rounded-xl border border-dark-700 p-12 text-center">
       <h2 class="text-xl font-semibold text-white mb-2">No orders found</h2>
       <p class="text-dark-400">
-        {{ statusFilter !== 'all' ? `No orders for filter "${statusFilter}"` : 'Orders will appear here when customers checkout.' }}
+        {{ statusFilter !== 'all' ? 'No orders match this filter.' : 'Orders will appear here when customers checkout.' }}
       </p>
     </div>
 
     <div v-else class="space-y-3 md:space-y-0 md:bg-dark-900 md:rounded-xl md:border md:border-dark-700 md:overflow-hidden">
       <!-- Mobile: stacked cards -->
       <div class="md:hidden space-y-3">
-        <NuxtLink
+        <article
           v-for="order in orders"
           :key="order.id"
-          :to="`/admin/orders/${order.id}`"
-          class="block bg-dark-900 rounded-xl border border-dark-700 p-4 active:bg-dark-800 transition-colors"
+          class="bg-dark-900 rounded-xl border border-dark-700 p-4"
         >
           <div class="flex items-start justify-between gap-3 mb-2">
             <div class="min-w-0">
               <p class="text-white font-medium font-mono text-sm truncate">{{ order.orderNumber || `#${order.id}` }}</p>
-              <p class="text-dark-400 text-sm truncate">{{ order.customerName }}</p>
-              <p class="text-dark-500 text-xs truncate">{{ order.email }}</p>
-            </div>
-            <span :class="badgeClass(order.paymentStatus)">{{ order.paymentStatus || '—' }}</span>
-          </div>
-          <div class="flex items-center justify-between gap-3 text-sm">
-            <div class="text-dark-400">
-              <p>{{ order.shippingStatus || '—' }}</p>
-              <p class="text-xs mt-0.5">{{ formatDate(order.createdAt) }}</p>
+              <p class="text-dark-200 text-sm truncate">{{ order.customerName }}</p>
             </div>
             <p class="text-white font-semibold shrink-0">{{ formatCents(order.totalCents) }}</p>
           </div>
-          <div class="mt-3">
-            <span class="inline-flex min-h-[44px] items-center justify-center px-4 rounded-xl bg-dark-700 text-white text-sm font-medium">
-              View order
-            </span>
+          <div class="flex flex-wrap gap-1.5 mb-3">
+            <span :class="paymentBadgeClass(order.paymentStatus)">{{ paymentLabel(order.paymentStatus) }}</span>
+            <span :class="badgeClass(fulfillmentBadge(order).kind)">{{ fulfillmentBadge(order).label }}</span>
           </div>
-        </NuxtLink>
+          <p class="text-dark-500 text-xs mb-3">{{ formatDate(order.createdAt) }}</p>
+          <NuxtLink
+            :to="`/admin/orders/${order.id}`"
+            class="inline-flex w-full min-h-[44px] items-center justify-center px-4 rounded-xl bg-cyan-500 text-white text-sm font-semibold"
+          >
+            View Order
+          </NuxtLink>
+        </article>
       </div>
 
       <!-- Desktop: table -->
@@ -86,11 +83,9 @@
               <th class="text-left px-4 py-3 text-dark-400 font-medium">Order</th>
               <th class="text-left px-4 py-3 text-dark-400 font-medium">Customer</th>
               <th class="text-left px-4 py-3 text-dark-400 font-medium">Payment</th>
-              <th class="text-left px-4 py-3 text-dark-400 font-medium">Shipping</th>
-              <th class="text-left px-4 py-3 text-dark-400 font-medium">Status</th>
+              <th class="text-left px-4 py-3 text-dark-400 font-medium">Fulfillment</th>
               <th class="text-right px-4 py-3 text-dark-400 font-medium">Total</th>
               <th class="text-left px-4 py-3 text-dark-400 font-medium">Created</th>
-              <th class="text-left px-4 py-3 text-dark-400 font-medium">Paid</th>
               <th class="text-right px-4 py-3 text-dark-400 font-medium">Actions</th>
             </tr>
           </thead>
@@ -109,13 +104,13 @@
                 <p class="text-dark-400 text-xs">{{ order.email }}</p>
               </td>
               <td class="px-4 py-3">
-                <span :class="badgeClass(order.paymentStatus)">{{ order.paymentStatus || '—' }}</span>
+                <span :class="paymentBadgeClass(order.paymentStatus)">{{ paymentLabel(order.paymentStatus) }}</span>
               </td>
-              <td class="px-4 py-3 text-dark-300">{{ order.shippingStatus || '—' }}</td>
-              <td class="px-4 py-3 text-dark-300">{{ order.status || '—' }}</td>
+              <td class="px-4 py-3">
+                <span :class="badgeClass(fulfillmentBadge(order).kind)">{{ fulfillmentBadge(order).label }}</span>
+              </td>
               <td class="px-4 py-3 text-right text-white font-medium">{{ formatCents(order.totalCents) }}</td>
               <td class="px-4 py-3 text-dark-300 text-xs">{{ formatDate(order.createdAt) }}</td>
-              <td class="px-4 py-3 text-dark-300 text-xs">{{ order.paidAt ? formatDate(order.paidAt) : '—' }}</td>
               <td class="px-4 py-3 text-right">
                 <NuxtLink
                   :to="`/admin/orders/${order.id}`"
@@ -137,6 +132,8 @@
 </template>
 
 <script setup lang="ts">
+import { badgeClass, fulfillmentBadge, paymentBadgeClass, paymentLabel } from '~/utils/adminFulfillment'
+
 definePageMeta({
   layout: 'admin',
   middleware: 'admin',
@@ -147,6 +144,15 @@ const search = ref('')
 const pending = ref(true)
 const error = ref('')
 const orders = ref<any[]>([])
+
+const filters = [
+  { value: 'all', label: 'All' },
+  { value: 'new_paid', label: 'New / Paid' },
+  { value: 'ready_to_ship', label: 'Ready to Ship' },
+  { value: 'label_purchased', label: 'Label Purchased' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'attention', label: 'Failed / Needs Attention' },
+]
 
 const formatCents = (cents: number) => `$${((Number(cents) || 0) / 100).toFixed(2)}`
 
@@ -159,24 +165,6 @@ const formatDate = (dateString: string | null) => {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-const badgeClass = (status: string | null) => {
-  const base = 'px-2 py-1 text-xs font-medium rounded capitalize '
-  switch (status) {
-    case 'paid':
-      return base + 'bg-green-500/10 text-green-400'
-    case 'pending':
-      return base + 'bg-yellow-500/10 text-yellow-400'
-    case 'processing':
-      return base + 'bg-blue-500/10 text-blue-400'
-    case 'failed':
-      return base + 'bg-red-500/10 text-red-400'
-    case 'cancelled':
-      return base + 'bg-dark-600 text-dark-300'
-    default:
-      return base + 'bg-dark-600 text-dark-300'
-  }
 }
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null

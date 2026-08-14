@@ -3,6 +3,7 @@
  * Create a new product with variants
  */
 import { requireAdminAuth } from '~/server/utils/adminAuth'
+import { ensureProductFallbackImage } from '~/server/utils/productImageService'
 
 interface VariantInput {
   name: string
@@ -91,6 +92,21 @@ export default defineEventHandler(async (event) => {
           },
         },
       })
+    }
+
+    try {
+      await ensureProductFallbackImage({
+        productId,
+        productName: body.name,
+        variants: body.variants,
+        hasUploadedImage: Boolean(body.imageId),
+        strapiUrl: String(strapiUrl),
+        headers,
+        force: true,
+        syncFields: true,
+      })
+    } catch (err: any) {
+      console.warn('[admin/products] fallback image generate failed:', err?.message || err)
     }
 
     return { data: { id: productId }, message: 'Product created successfully' }

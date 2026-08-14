@@ -112,6 +112,8 @@
           <AdminProductImageField
             v-model:image-id="form.imageId"
             v-model:image-url="form.imageUrl"
+            v-model:generated-image-url="form.generatedImageUrl"
+            v-model:image-source="form.imageSource"
             :product-id="Number(productId)"
           />
 
@@ -294,6 +296,8 @@ const form = ref({
   requiresConfirmation: true,
   imageId: null as number | null,
   imageUrl: null as string | null,
+  generatedImageUrl: null as string | null,
+  imageSource: 'placeholder' as 'uploaded' | 'generated' | 'placeholder',
   variants: [] as VariantForm[],
 })
 
@@ -312,15 +316,16 @@ const fetchProduct = async () => {
     product.value = response.data
 
     if (product.value) {
-      const attrs = product.value.attributes
+      const attrs = product.value.attributes as any
       const imageData = attrs.image?.data
       const imageAttrs = imageData?.attributes
-      const imageUrl =
+      const uploadedUrl =
         getStrapiMediaUrl(
           imageAttrs?.formats?.medium?.url ||
             imageAttrs?.formats?.small?.url ||
             imageAttrs?.url
         ) || null
+      const generatedImageUrl = attrs.generatedImageUrl || `/product-images/generated/product-${product.value.id}.svg`
 
       form.value = {
         name: attrs.name,
@@ -331,8 +336,10 @@ const fetchProduct = async () => {
         active: attrs.active,
         requiresConfirmation: attrs.requiresConfirmation,
         imageId: imageData?.id ?? null,
-        imageUrl,
-        variants: (attrs.variants?.data || []).map(v => ({
+        imageUrl: uploadedUrl,
+        generatedImageUrl,
+        imageSource: uploadedUrl ? 'uploaded' : 'generated',
+        variants: (attrs.variants?.data || []).map((v: Variant) => ({
           id: v.id,
           name: v.attributes.name,
           sku: v.attributes.sku,

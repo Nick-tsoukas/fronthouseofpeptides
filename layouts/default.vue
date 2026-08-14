@@ -7,6 +7,7 @@
     <TheFooter />
     <CartDrawer />
     <ComplianceModal />
+    <PwaInstallBanner />
   </div>
 </template>
 

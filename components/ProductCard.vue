@@ -1,40 +1,57 @@
 <template>
   <div class="group relative bg-dark-900/50 rounded-xl overflow-hidden border border-white/5 hover:border-cyan-500/20 transition-all duration-300 hover:shadow-xl hover:shadow-cyan-500/5 hover:scale-[1.01]">
     <!-- Product Image -->
-    <div class="relative aspect-[4/3] overflow-hidden">
-      <!-- Real image -->
+    <NuxtLink :to="`/product/${product.attributes.slug}`" class="relative aspect-[4/3] overflow-hidden block">
+      <!-- Real / generated image -->
       <img
-        v-if="imageUrl"
+        v-if="imageUrl && !imageBroken"
         :src="imageUrl"
         :alt="product.attributes.name"
         class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        @error="imageBroken = true"
       />
       <!-- Gradient fallback -->
       <div
-        v-else
+        v-if="!imageUrl || imageBroken"
         class="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
         :style="{ background: gradientStyle }"
       ></div>
-      <!-- Overlay -->
-      <div class="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/20 to-transparent"></div>
+      <!-- Overlay: lighter on generated art so the label stays readable -->
+      <div
+        class="absolute inset-0"
+        :class="imageSource === 'generated'
+          ? 'bg-gradient-to-t from-dark-950/55 via-transparent to-transparent'
+          : 'bg-gradient-to-t from-dark-950 via-dark-950/20 to-transparent'"
+      ></div>
       <!-- Badge -->
       <div class="absolute top-3 left-3">
         <span class="px-2.5 py-1 bg-cyan-500/90 text-white text-xs font-medium rounded backdrop-blur-sm">
           {{ product.attributes.badgeText || 'Research Use Only' }}
         </span>
       </div>
-      <!-- Purity Badge -->
+      <!-- Purity / stock Badge -->
       <div class="absolute top-3 right-3">
-        <span class="px-2 py-1 bg-dark-950/80 text-cyan-400 text-xs font-medium rounded backdrop-blur-sm border border-cyan-500/20">
+        <span
+          v-if="allOutOfStock"
+          class="px-2 py-1 bg-dark-950/80 text-red-400 text-xs font-medium rounded backdrop-blur-sm border border-red-500/20"
+        >
+          Out of stock
+        </span>
+        <span
+          v-else
+          class="px-2 py-1 bg-dark-950/80 text-cyan-400 text-xs font-medium rounded backdrop-blur-sm border border-cyan-500/20"
+        >
           99%+ Pure
         </span>
       </div>
-    </div>
+    </NuxtLink>
 
     <!-- Content -->
     <div class="p-5">
       <h3 class="text-lg font-semibold text-white mb-1.5 group-hover:text-cyan-300 transition-colors duration-200">
-        {{ product.attributes.name }}
+        <NuxtLink :to="`/product/${product.attributes.slug}`">
+          {{ product.attributes.name }}
+        </NuxtLink>
       </h3>
       <p class="text-dark-400 text-sm mb-4 line-clamp-2 leading-relaxed">
         {{ product.attributes.shortDescription }}
@@ -64,30 +81,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Product } from '~/types'
-import { useCartStore } from '~/stores/cart'
-import { useCompliance } from '~/composables/useCompliance'
-import { useStrapiMedia } from '~/composables/useStrapiMedia'
-import { getProductImageFallback } from '~/utils/productImageFallbacks'
+import { getProductImage } from '~/utils/getProductImage'
 import { CURRENCY } from '~/constants'
 
 const props = defineProps<{
   product: Product
 }>()
 
-const cartStore = useCartStore()
-const { requireConfirmation } = useCompliance()
-const { getStrapiMediaUrl } = useStrapiMedia()
+const resolvedImage = computed(() => getProductImage(props.product))
+const imageUrl = computed(() => resolvedImage.value.url)
+const imageSource = computed(() => resolvedImage.value.source)
+const imageBroken = ref(false)
 
-const imageUrl = computed(() => {
-  // Prefer BFF convenience field (absolute or same-origin URL)
-  const direct = (props.product.attributes as any).imageUrl
-  if (typeof direct === 'string' && direct) return direct
-
-  const raw = props.product.attributes.image?.data?.attributes
-  const url = raw?.formats?.medium?.url || raw?.formats?.small?.url || raw?.url
-  return getStrapiMediaUrl(url) || getProductImageFallback(props.product.attributes.slug)
+watch(imageUrl, () => {
+  imageBroken.value = false
 })
 
 // Generate a consistent gradient based on product id
@@ -128,21 +137,4 @@ const priceRange = computed(() => {
   }
   return `${CURRENCY.SYMBOL}${min.toFixed(2)} - ${CURRENCY.SYMBOL}${max.toFixed(2)}`
 })
-
-const handleQuickAdd = () => {
-  if (!firstAvailableVariant.value) return
-  
-  const variant = firstAvailableVariant.value
-  
-  requireConfirmation(() => {
-    cartStore.addItem({
-      productId: props.product.id,
-      variantId: variant.id,
-      productName: props.product.attributes.name,
-      variantName: variant.attributes.name,
-      sku: variant.attributes.sku,
-      unitPrice: variant.attributes.price,
-    })
-  })
-}
 </script>

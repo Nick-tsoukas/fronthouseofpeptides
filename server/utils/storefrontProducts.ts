@@ -1,4 +1,5 @@
 import { getProductImageFallback } from '~/utils/productImageFallbacks'
+import { generatedProductImagePath } from '~/utils/getProductImage'
 
 /**
  * Normalize Strapi media URL to absolute.
@@ -64,8 +65,25 @@ export function mapStorefrontProduct(strapiUrl: string, entry: any) {
     imageUrl = null
   }
 
-  if (!imageUrl) {
-    imageUrl = getProductImageFallback(attrs.slug)
+  const uploadedUrl = imageUrl
+  const slugFallback = getProductImageFallback(attrs.slug)
+  const generatedUrl =
+    (typeof attrs.generatedImageUrl === 'string' && attrs.generatedImageUrl) ||
+    (entry?.id ? generatedProductImagePath(entry.id) : null)
+
+  let imageSource: 'uploaded' | 'generated' | 'placeholder' = 'placeholder'
+  if (uploadedUrl) {
+    imageUrl = uploadedUrl
+    imageSource = 'uploaded'
+  } else if (slugFallback) {
+    imageUrl = slugFallback
+    imageSource = 'uploaded'
+  } else if (generatedUrl) {
+    imageUrl = generatedUrl
+    imageSource = 'generated'
+  } else {
+    imageUrl = null
+    imageSource = 'placeholder'
   }
 
   const imageData = attrs.image?.data && attrs.image.data !== null ? attrs.image.data : null
@@ -121,6 +139,8 @@ export function mapStorefrontProduct(strapiUrl: string, entry: any) {
       ...attrs,
       image,
       imageUrl,
+      generatedImageUrl: generatedUrl,
+      imageSource,
     },
   }
 }

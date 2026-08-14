@@ -1,6 +1,6 @@
 import type { Product } from '~/types'
 import { mockProducts } from '~/data/mockProducts'
-import { getProductImageFallback } from '~/utils/productImageFallbacks'
+import { getProductImage } from '~/utils/getProductImage'
 
 const USE_MOCK_DATA = false
 
@@ -18,13 +18,6 @@ function normalizeProductImages(strapiUrl: string, products: any[]): Product[] {
   return (products || []).map((entry) => {
     const attrs = entry?.attributes || {}
     const imageData = attrs.image?.data
-    const raw =
-      imageData?.attributes?.formats?.medium?.url ||
-      imageData?.attributes?.formats?.small?.url ||
-      imageData?.attributes?.url ||
-      null
-    let imageUrl = absoluteMediaUrl(strapiUrl, raw) || getProductImageFallback(attrs.slug)
-
     let image = attrs.image
     if (imageData?.attributes) {
       image = {
@@ -46,7 +39,21 @@ function normalizeProductImages(strapiUrl: string, products: any[]): Product[] {
           },
         },
       }
-    } else if (imageUrl) {
+    }
+
+    const mapped = {
+      id: entry.id,
+      attributes: {
+        ...attrs,
+        image,
+        generatedImageUrl:
+          attrs.generatedImageUrl || (entry.id ? `/product-images/generated/product-${entry.id}.svg` : null),
+      },
+    }
+    const resolved = getProductImage(mapped)
+    const imageUrl = resolved.url ? absoluteMediaUrl(strapiUrl, resolved.url) || resolved.url : null
+
+    if (!imageData?.attributes && imageUrl) {
       image = {
         data: {
           id: 0,
@@ -67,6 +74,8 @@ function normalizeProductImages(strapiUrl: string, products: any[]): Product[] {
         ...attrs,
         image,
         imageUrl,
+        generatedImageUrl: mapped.attributes.generatedImageUrl,
+        imageSource: resolved.source,
       },
     } as Product
   })

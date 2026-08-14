@@ -44,6 +44,10 @@ export default defineNuxtConfig({
     ownerAdminPassword: process.env.OWNER_ADMIN_PASSWORD || '',
     ownerSessionSecret: process.env.OWNER_SESSION_SECRET || 'changeme-dev-secret',
 
+    // Web Push (server-only private key)
+    vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
+    vapidSubject: process.env.VAPID_SUBJECT || 'mailto:orders@quantumbiopeptides.com',
+
     // Moov (server-only — never expose in public)
     moovPublicKey: process.env.MOOV_PUBLIC_KEY || '',
     moovSecretKey: process.env.MOOV_SECRET_KEY || '',
@@ -77,6 +81,7 @@ export default defineNuxtConfig({
       appUrl: process.env.APP_URL || 'http://localhost:3000',
       moovMode: process.env.MOOV_MODE || 'test',
       shippoMode: process.env.SHIPPO_MODE || 'test',
+      vapidPublicKey: process.env.VAPID_PUBLIC_KEY || '',
     }
   },
 
@@ -86,9 +91,16 @@ export default defineNuxtConfig({
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
-        { name: 'description', content: 'Premium research-grade peptides for qualified professionals. US shipping only.' }
+        { name: 'description', content: 'Premium research-grade peptides for qualified professionals. US shipping only.' },
+        { name: 'theme-color', content: '#000000' },
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+        { name: 'apple-mobile-web-app-title', content: 'QBP' },
+        { name: 'application-name', content: 'QBP' },
       ],
       link: [
+        { rel: 'manifest', href: '/manifest.webmanifest' },
         { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icons/favicon-32.png' },
         { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/icons/favicon-16.png' },
         { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },

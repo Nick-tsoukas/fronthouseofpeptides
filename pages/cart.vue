@@ -26,9 +26,20 @@
             >
               <div class="flex gap-3 sm:gap-4 min-w-0 flex-1">
                 <div
-                  class="w-16 h-16 sm:w-24 sm:h-24 rounded-lg flex-shrink-0"
-                  :style="{ background: getGradient(item.productId) }"
-                ></div>
+                  class="w-16 h-16 sm:w-24 sm:h-24 rounded-lg flex-shrink-0 overflow-hidden bg-dark-800"
+                >
+                  <img
+                    v-if="item.imageUrl"
+                    :src="item.imageUrl"
+                    :alt="item.productName"
+                    class="h-full w-full object-cover"
+                  />
+                  <div
+                    v-else
+                    class="h-full w-full"
+                    :style="{ background: getGradient(item.productId) }"
+                  ></div>
+                </div>
 
                 <div class="flex-1 min-w-0">
                   <div class="flex items-start justify-between gap-2">
@@ -73,18 +84,18 @@
               <span>Subtotal</span>
               <span>{{ formatPrice(cartStore.subtotal) }}</span>
             </div>
-            <div class="flex justify-between text-dark-300">
+            <div class="flex justify-between text-dark-500">
               <span>Shipping</span>
-              <span>{{ SHIPPING.FLAT_RATE_DISPLAY }}</span>
+              <span>Calculated at checkout</span>
             </div>
             <div class="border-t border-dark-700 pt-3 flex justify-between text-white font-semibold text-lg">
               <span>Total</span>
-              <span>{{ formatPrice(cartStore.subtotal + SHIPPING.FLAT_RATE_CENTS / 100) }}</span>
+              <span>{{ formatPrice(cartStore.subtotal) }}</span>
             </div>
           </div>
 
           <p class="text-dark-500 text-xs mb-4">
-            {{ SHIPPING.LABEL }} — {{ SHIPPING.DELIVERY_ESTIMATE }}
+            Shipping is quoted at checkout. The total above does not include shipping yet.
           </p>
 
           <NuxtLink
@@ -108,7 +119,7 @@
 
 <script setup lang="ts">
 import { useCartStore } from '~/stores/cart'
-import { CURRENCY, SHIPPING } from '~/constants'
+import { CURRENCY } from '~/constants'
 
 const cartStore = useCartStore()
 

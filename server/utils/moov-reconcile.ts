@@ -10,14 +10,21 @@ import {
 } from '~/server/utils/moov'
 import { sendPaidOrderEmails } from '~/server/utils/sendOrderEmails'
 import { createInventoryAdjustmentLog } from '~/server/utils/inventory-log'
+import { notifyOwnerPush } from '~/server/utils/ownerPush'
+
+export interface InventoryCommitResult {
+  anyTracked: boolean
+  alerts: Array<{ label: string; newInventory: number }>
+}
 
 export async function commitInventoryOnce(
   strapiUrl: string,
   authHeaders: Record<string, string>,
   orderId: number,
   orderItems: any[]
-): Promise<boolean> {
+): Promise<InventoryCommitResult> {
   let anyTracked = false
+  const alerts: InventoryCommitResult['alerts'] = []
 
   for (const item of orderItems) {
     const attrs = item.attributes || {}
@@ -60,9 +67,17 @@ export async function commitInventoryOnce(
       relatedOrderId: orderId,
       createdByAdmin: null,
     })
+
+    if (newInventory <= 5) {
+      const label =
+        [attrs.productNameSnapshot, attrs.variantNameSnapshot].filter(Boolean).join(' · ') ||
+        variant.attributes?.sku ||
+        `Variant ${variant.id}`
+      alerts.push({ label, newInventory })
+    }
   }
 
-  return anyTracked
+  return { anyTracked, alerts }
 }
 
 export function extractTransferIdFromWebhookPayload(payload: any): string | undefined {
@@ -242,6 +257,9 @@ export async function applyVerifiedTransferToOrder(opts: {
 
   let shouldCommitInventory = false
   let shouldSendEmails = false
+  let shouldNotifyPaid = false
+  let shouldNotifyFailed = false
+  let stockAlerts: InventoryCommitResult['alerts'] = []
 
   if (mappedPaymentStatus === 'paid' && !alreadyPaid) {
     updateData.paymentStatus = 'paid'
@@ -261,12 +279,17 @@ export async function applyVerifiedTransferToOrder(opts: {
       updateData.shippingStatus = 'ready_to_ship'
     }
     shouldSendEmails = sendEmailsOnPaid
+    shouldNotifyPaid = true
 
     if (!alreadyCommitted) {
       shouldCommitInventory = true
       updateData.inventoryCommitted = true
       updateData.inventoryAdjusted = true
     }
+  }
+
+  if (mappedPaymentStatus === 'failed' && !alreadyPaid && attrs.paymentStatus !== 'failed') {
+    shouldNotifyFailed = true
   }
 
   if (shouldCommitInventory) {
@@ -280,7 +303,8 @@ export async function applyVerifiedTransferToOrder(opts: {
         )
         orderItems = itemsResponse.data || []
       }
-      await commitInventoryOnce(strapiUrl, authHeaders, orderId, orderItems)
+      const commit = await commitInventoryOnce(strapiUrl, authHeaders, orderId, orderItems)
+      stockAlerts = commit.alerts
     } catch (err: any) {
       console.error('Inventory commit failed:', err?.message || err)
       updateData.inventoryCommitted = false
@@ -291,6 +315,12 @@ export async function applyVerifiedTransferToOrder(opts: {
       ]
         .filter(Boolean)
         .join('\n')
+      void notifyOwnerPush({
+        title: 'Inventory update failed',
+        body: `${attrs.orderNumber || `Order #${orderId}`} is paid, but stock was not updated. Check inventory.`,
+        url: `/admin/orders/${orderId}`,
+        tag: `order-${orderId}-inventory`,
+      })
     }
   }
 
@@ -358,6 +388,40 @@ export async function applyVerifiedTransferToOrder(opts: {
       }
     ).catch((err: any) => {
       console.error('Paid order email failed:', err?.message || err)
+    })
+  }
+
+  const orderLabel = attrs.orderNumber || `Order #${orderId}`
+  const total = ((Number(attrs.totalCents) || 0) / 100).toFixed(2)
+  const customer = String(attrs.customerName || '').trim()
+
+  if (shouldNotifyPaid) {
+    void notifyOwnerPush({
+      title: 'New paid order',
+      body: customer ? `${orderLabel} · $${total} · ${customer}` : `${orderLabel} · $${total}`,
+      url: `/admin/orders/${orderId}`,
+      tag: `order-${orderId}-paid`,
+    })
+  }
+
+  if (shouldNotifyFailed) {
+    void notifyOwnerPush({
+      title: 'Payment failed',
+      body: `${orderLabel} did not go through.`,
+      url: `/admin/orders/${orderId}`,
+      tag: `order-${orderId}-failed`,
+    })
+  }
+
+  for (const alert of stockAlerts) {
+    void notifyOwnerPush({
+      title: alert.newInventory <= 0 ? 'Out of stock' : 'Low stock',
+      body:
+        alert.newInventory <= 0
+          ? `${alert.label} is now at 0.`
+          : `${alert.label} has ${alert.newInventory} left.`,
+      url: '/admin/products',
+      tag: `stock-${alert.label}`.slice(0, 48),
     })
   }
 

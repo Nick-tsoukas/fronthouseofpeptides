@@ -62,15 +62,27 @@ export default defineEventHandler(async (event) => {
     params.set('filters[paymentStatus][$eq]', 'pending')
   } else if (filter === 'processing') {
     params.set('filters[paymentStatus][$eq]', 'processing')
-  } else if (filter === 'paid') {
-    params.set('filters[paymentStatus][$eq]', 'paid')
+  } else if (filter === 'paid' || filter === 'new_paid') {
+    params.set('filters[$and][0][paymentStatus][$eq]', 'paid')
+    params.set('filters[$and][1][shippingStatus][$notIn][0]', 'shipped')
+    params.set('filters[$and][1][shippingStatus][$notIn][1]', 'delivered')
+  } else if (filter === 'ready_to_ship') {
+    params.set('filters[$or][0][shippingStatus][$eq]', 'ready_to_ship')
+    params.set('filters[$or][1][shippingStatus][$eq]', 'selected')
+  } else if (filter === 'label_purchased') {
+    params.set('filters[shippingStatus][$eq]', 'label_purchased')
   } else if (filter === 'failed') {
     params.set('filters[paymentStatus][$eq]', 'failed')
+  } else if (filter === 'attention') {
+    params.set('filters[$or][0][paymentStatus][$eq]', 'failed')
+    params.set('filters[$or][1][shippingStatus][$eq]', 'label_failed')
   } else if (filter === 'cancelled' || filter === 'canceled') {
     params.set('filters[$or][0][paymentStatus][$eq]', 'cancelled')
     params.set('filters[$or][1][status][$eq]', 'cancelled')
   } else if (filter === 'shipped') {
-    params.set('filters[shippingStatus][$eq]', 'shipped')
+    params.set('filters[$or][0][shippingStatus][$eq]', 'shipped')
+    params.set('filters[$or][1][shippingStatus][$eq]', 'delivered')
+    params.set('filters[$or][2][shippingStatus][$eq]', 'in_transit')
   }
 
   const response = await $fetch<{ data: any[]; meta: any }>(

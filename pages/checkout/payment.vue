@@ -305,6 +305,20 @@
           <div class="rounded-2xl border border-slate-600/50 bg-dark-900/95 p-6 shadow-xl shadow-black/20">
             <h2 class="text-lg font-semibold text-white mb-5">Order Summary</h2>
 
+            <div v-if="cartStore.items.length" class="divide-y divide-dark-800 mb-5">
+              <div
+                v-for="item in cartStore.items"
+                :key="item.variantId"
+                class="flex justify-between py-2.5 text-sm gap-3"
+              >
+                <div class="min-w-0">
+                  <p class="text-white font-medium leading-snug">{{ item.productName }}</p>
+                  <p class="text-dark-400">{{ item.variantName }} × {{ item.quantity }}</p>
+                </div>
+                <p class="text-white whitespace-nowrap shrink-0">{{ formatPrice(item.unitPrice * item.quantity) }}</p>
+              </div>
+            </div>
+
             <div class="space-y-3 text-sm">
               <div class="flex justify-between gap-4">
                 <span class="text-dark-400">Order</span>
@@ -460,6 +474,7 @@ const billingCountry = ref('US')
 const isTestMode = computed(() => (config.public.moovMode as string || 'test') === 'test')
 const invalidTotal = computed(() => !totalCents.value || totalCents.value <= 0)
 const formatCents = (cents: number) => `${CURRENCY.SYMBOL}${((Number(cents) || 0) / 100).toFixed(2)}`
+const formatPrice = (price: number) => `${CURRENCY.SYMBOL}${Number(price || 0).toFixed(2)}`
 
 const isBusy = computed(() =>
   ['card_submitting', 'preparing', 'processing_payment'].includes(paymentStage.value)

@@ -42,6 +42,11 @@
       </div>
 
       <!-- Empty State -->
+      <div v-else-if="error" class="text-center py-16">
+        <p class="text-red-400 text-lg mb-2">Could not load products.</p>
+        <p class="text-dark-400">Refresh the page to try again.</p>
+      </div>
+
       <div v-else class="text-center py-16">
         <div class="w-16 h-16 mx-auto mb-6 rounded-full bg-dark-800 flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-dark-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -61,6 +66,7 @@ import { computed } from 'vue'
 const props = defineProps<{
   products?: Product[] | null
   loading?: boolean
+  error?: boolean
 }>()
 
 const displayProducts = computed(() => props.products ?? [])

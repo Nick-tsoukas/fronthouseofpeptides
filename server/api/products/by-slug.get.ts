@@ -2,7 +2,9 @@
  * GET /api/products/by-slug?slug=
  * Public storefront product detail.
  */
-import { mapStorefrontProduct } from '~/server/utils/storefrontProducts'
+import { mapStorefrontProduct, extractProductImageUrl } from '~/server/utils/storefrontProducts'
+import { getProductImageFallback } from '~/utils/productImageFallbacks'
+import { ensureProductFallbackImage, variantsFromStrapi } from '~/server/utils/productImageService'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
@@ -72,6 +74,22 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
+    const uploaded = extractProductImageUrl(strapiUrl, entry)
+    const slugFallback = getProductImageFallback(entry?.attributes?.slug)
+    if (!uploaded && !slugFallback && entry?.id && entry?.attributes?.name) {
+      await ensureProductFallbackImage({
+        productId: entry.id,
+        productName: entry.attributes.name,
+        variants: variantsFromStrapi(entry),
+        hasUploadedImage: false,
+        strapiUrl,
+        headers,
+        force: false,
+      })
+      if (!entry.attributes.generatedImageUrl) {
+        entry.attributes.generatedImageUrl = `/product-images/generated/product-${entry.id}.svg`
+      }
+    }
     return { ok: true, data: mapStorefrontProduct(strapiUrl, entry) }
   } catch {
     return {

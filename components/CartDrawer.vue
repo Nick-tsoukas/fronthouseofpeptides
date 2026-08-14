@@ -60,9 +60,20 @@
             >
               <div class="flex gap-3">
                 <div
-                  class="w-14 h-14 sm:w-16 sm:h-16 rounded-lg flex-shrink-0"
-                  :style="{ background: getGradient(item.productId) }"
-                ></div>
+                  class="w-14 h-14 sm:w-16 sm:h-16 rounded-lg flex-shrink-0 overflow-hidden bg-dark-800"
+                >
+                  <img
+                    v-if="item.imageUrl"
+                    :src="item.imageUrl"
+                    :alt="item.productName"
+                    class="h-full w-full object-cover"
+                  />
+                  <div
+                    v-else
+                    class="h-full w-full"
+                    :style="{ background: getGradient(item.productId) }"
+                  ></div>
+                </div>
 
                 <div class="flex-1 min-w-0">
                   <div class="flex items-start justify-between gap-2">

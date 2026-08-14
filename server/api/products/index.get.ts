@@ -7,7 +7,9 @@
  * - Fall back to populate=* if needed
  * - Never throw away a successful product list because of image mapping
  */
-import { mapStorefrontProduct } from '~/server/utils/storefrontProducts'
+import { mapStorefrontProduct, extractProductImageUrl } from '~/server/utils/storefrontProducts'
+import { getProductImageFallback } from '~/utils/productImageFallbacks'
+import { ensureProductFallbackImage, variantsFromStrapi } from '~/server/utils/productImageService'
 
 async function fetchStrapiProducts(
   strapiUrl: string,
@@ -79,21 +81,37 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const products = (response.data || []).map((entry) => {
+  const products = []
+  for (const entry of response.data || []) {
     try {
-      return mapStorefrontProduct(strapiUrl, entry)
+      const uploaded = extractProductImageUrl(strapiUrl, entry)
+      const slugFallback = getProductImageFallback(entry?.attributes?.slug)
+      if (!uploaded && !slugFallback && entry?.id && entry?.attributes?.name) {
+        await ensureProductFallbackImage({
+          productId: entry.id,
+          productName: entry.attributes.name,
+          variants: variantsFromStrapi(entry),
+          hasUploadedImage: false,
+          strapiUrl,
+          headers,
+          force: false,
+        })
+        if (!entry.attributes.generatedImageUrl) {
+          entry.attributes.generatedImageUrl = `/product-images/generated/product-${entry.id}.svg`
+        }
+      }
+      products.push(mapStorefrontProduct(strapiUrl, entry))
     } catch (mapErr: any) {
       console.error('[api/products] mapStorefrontProduct failed for id=', entry?.id, mapErr?.message || mapErr)
-      // Keep product visible even if image normalization fails
-      return {
+      products.push({
         id: entry.id,
         attributes: {
           ...(entry.attributes || {}),
           imageUrl: null,
         },
-      }
+      })
     }
-  })
+  }
 
   return {
     ok: true,

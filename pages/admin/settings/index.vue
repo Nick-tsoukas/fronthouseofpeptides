@@ -168,7 +168,59 @@
         </button>
       </div>
 
-      <!-- Admin Actions -->
+      <!-- Push Notifications -->
+      <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
+        <h2 class="text-lg font-semibold text-white mb-2">Owner push notifications</h2>
+        <p class="text-dark-400 text-sm mb-4 leading-relaxed">
+          Get a phone alert when an order is paid, a payment fails, or stock runs low. Best on the installed
+          <strong class="text-dark-200">QBP Owner</strong> app.
+        </p>
+
+        <p v-if="push.permission.value === 'unsupported'" class="text-amber-400 text-sm mb-3">
+          This browser does not support web push.
+        </p>
+        <p v-else-if="!push.configured.value" class="text-amber-400 text-sm mb-3">
+          Push is not configured on the server yet. Set VAPID keys, then deploy.
+        </p>
+        <p v-else-if="push.subscribed.value" class="text-emerald-400 text-sm mb-3">
+          Notifications are on for this device.
+        </p>
+        <p v-else class="text-dark-400 text-sm mb-3">
+          Notifications are off on this device.
+        </p>
+
+        <p v-if="push.error.value" class="text-red-400 text-sm mb-3">{{ push.error.value }}</p>
+
+        <div class="flex flex-wrap gap-3">
+          <button
+            v-if="!push.subscribed.value"
+            type="button"
+            :disabled="push.busy.value || !push.configured.value"
+            class="min-h-[44px] px-4 rounded-xl bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white text-sm font-semibold"
+            @click="push.enable()"
+          >
+            {{ push.busy.value ? 'Enabling…' : 'Enable notifications' }}
+          </button>
+          <button
+            v-else
+            type="button"
+            :disabled="push.busy.value"
+            class="min-h-[44px] px-4 rounded-xl bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium"
+            @click="push.disable()"
+          >
+            Turn off
+          </button>
+          <button
+            v-if="push.subscribed.value"
+            type="button"
+            :disabled="push.busy.value"
+            class="min-h-[44px] px-4 rounded-xl bg-dark-800 hover:bg-dark-700 border border-dark-600 text-white text-sm font-medium"
+            @click="push.sendTest()"
+          >
+            Send test
+          </button>
+        </div>
+      </div>
       <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
         <h2 class="text-lg font-semibold text-white mb-4">Admin Actions</h2>
         
@@ -197,6 +249,7 @@ definePageMeta({
 })
 
 const { logout: adminLogout } = useAdmin()
+const push = useOwnerPush()
 
 const STORAGE_KEY = 'houseofpeptides_settings'
 
@@ -227,6 +280,7 @@ onMounted(() => {
         // Use defaults
       }
     }
+    void push.refresh()
   }
 })
 

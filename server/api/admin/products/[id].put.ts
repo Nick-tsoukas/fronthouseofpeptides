@@ -3,6 +3,7 @@
  * Update a product and its variants
  */
 import { requireAdminAuth } from '~/server/utils/adminAuth'
+import { ensureProductFallbackImage } from '~/server/utils/productImageService'
 
 interface VariantInput {
   id?: number
@@ -118,6 +119,21 @@ export default defineEventHandler(async (event) => {
           },
         })
       }
+    }
+
+    try {
+      await ensureProductFallbackImage({
+        productId: parseInt(id),
+        productName: body.name,
+        variants: body.variants,
+        hasUploadedImage: body.imageId != null,
+        strapiUrl: String(strapiUrl),
+        headers,
+        force: false,
+        syncFields: true,
+      })
+    } catch (err: any) {
+      console.warn('[admin/products] fallback image generate failed:', err?.message || err)
     }
 
     return { message: 'Product updated successfully' }
