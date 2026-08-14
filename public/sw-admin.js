@@ -1,5 +1,5 @@
 /* Quantum Bio Owner Admin PWA service worker */
-const CACHE = 'qbp-admin-v2'
+const CACHE = 'qbp-admin-v3'
 const PRECACHE = [
   '/admin',
   '/admin.webmanifest',
@@ -26,7 +26,7 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'QBP Owner',
     body: 'You have a new store alert.',
-    url: '/admin',
+    url: '/admin/orders',
     tag: 'qbp-owner',
   }
   try {
@@ -41,7 +41,7 @@ self.addEventListener('push', (event) => {
       tag: data.tag,
       icon: '/icons/icon-192.png',
       badge: '/icons/favicon-32.png',
-      data: { url: data.url || '/admin' },
+      data: { url: data.url || '/admin/orders' },
     })
   )
 })
@@ -52,15 +52,29 @@ self.addEventListener('notificationclick', (event) => {
   const target = new URL(path, self.location.origin).href
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    (async () => {
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       for (const client of clientList) {
-        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-          if (typeof client.navigate === 'function') client.navigate(target)
-          return client.focus()
+        try {
+          if (new URL(client.url).origin !== self.location.origin) continue
+        } catch {
+          continue
         }
+        if ('focus' in client) await client.focus()
+        if (client.postMessage) {
+          client.postMessage({ type: 'QBP_NAVIGATE', url: path })
+        }
+        if (typeof client.navigate === 'function') {
+          try {
+            await client.navigate(target)
+          } catch {
+            // iOS / older clients may not support navigate
+          }
+        }
+        return
       }
       if (self.clients.openWindow) return self.clients.openWindow(target)
-    })
+    })()
   )
 })
 
@@ -69,8 +83,10 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return
 
   const url = new URL(req.url)
-  // Only handle same-origin admin navigations + static assets
   if (url.origin !== self.location.origin) return
+
+  // Never cache admin API / order data — fulfillment must stay fresh.
+  if (url.pathname.startsWith('/api/')) return
 
   const isAdminNav = req.mode === 'navigate' && url.pathname.startsWith('/admin')
   const isIcon = url.pathname.startsWith('/icons/') || url.pathname === '/admin.webmanifest'

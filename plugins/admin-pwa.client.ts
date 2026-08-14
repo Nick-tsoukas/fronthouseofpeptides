@@ -2,6 +2,7 @@ export default defineNuxtPlugin(() => {
   if (!import.meta.client || !('serviceWorker' in navigator)) return
 
   const route = useRoute()
+  const router = useRouter()
 
   const register = async () => {
     if (!route.path.startsWith('/admin')) return
@@ -12,7 +13,13 @@ export default defineNuxtPlugin(() => {
     }
   }
 
-  // Register on admin routes (and when navigating into admin)
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    const path = event.data?.url
+    if (event.data?.type !== 'QBP_NAVIGATE' || typeof path !== 'string') return
+    if (!path.startsWith('/admin')) return
+    void router.push(path)
+  })
+
   watch(
     () => route.path,
     () => {

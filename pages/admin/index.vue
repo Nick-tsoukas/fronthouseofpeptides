@@ -27,21 +27,22 @@
         Notification settings
       </NuxtLink>
     </div>
+    <div class="space-y-6">
       <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-white">Quick links</h2>
         </div>
-        <div class="grid grid-cols-2 gap-4">
-          <NuxtLink to="/admin/orders" class="p-4 bg-dark-800 hover:bg-dark-700 rounded-lg border border-dark-600 text-center text-white text-sm font-medium">
+        <div class="grid grid-cols-2 gap-3">
+          <NuxtLink to="/admin/orders" class="min-h-[48px] p-4 bg-dark-800 hover:bg-dark-700 rounded-xl border border-dark-600 text-center text-white text-sm font-medium inline-flex items-center justify-center">
             View Orders
           </NuxtLink>
-          <NuxtLink to="/admin/products" class="p-4 bg-dark-800 hover:bg-dark-700 rounded-lg border border-dark-600 text-center text-white text-sm font-medium">
+          <NuxtLink to="/admin/products" class="min-h-[48px] p-4 bg-dark-800 hover:bg-dark-700 rounded-xl border border-dark-600 text-center text-white text-sm font-medium inline-flex items-center justify-center">
             Products & Stock
           </NuxtLink>
-          <NuxtLink to="/admin/products/new" class="p-4 bg-dark-800 hover:bg-dark-700 rounded-lg border border-dark-600 text-center text-white text-sm font-medium">
+          <NuxtLink to="/admin/products/new" class="min-h-[48px] p-4 bg-dark-800 hover:bg-dark-700 rounded-xl border border-dark-600 text-center text-white text-sm font-medium inline-flex items-center justify-center">
             Add Product
           </NuxtLink>
-          <NuxtLink to="/admin/settings" class="p-4 bg-dark-800 hover:bg-dark-700 rounded-lg border border-dark-600 text-center text-white text-sm font-medium">
+          <NuxtLink to="/admin/settings" class="min-h-[48px] p-4 bg-dark-800 hover:bg-dark-700 rounded-xl border border-dark-600 text-center text-white text-sm font-medium inline-flex items-center justify-center">
             Settings
           </NuxtLink>
         </div>
@@ -50,7 +51,7 @@
       <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-white">Recent paid / active orders</h2>
-          <NuxtLink to="/admin/orders" class="text-cyan-400 hover:text-cyan-300 text-sm">View All →</NuxtLink>
+          <NuxtLink to="/admin/orders" class="text-cyan-400 hover:text-cyan-300 text-sm min-h-[44px] inline-flex items-center">View All →</NuxtLink>
         </div>
         <div v-if="!stats?.recentOrders?.length" class="text-dark-400 text-sm py-8 text-center">No orders yet</div>
         <div v-else class="space-y-3">
@@ -58,13 +59,13 @@
             v-for="order in stats.recentOrders"
             :key="order.id"
             :to="`/admin/orders/${order.id}`"
-            class="flex items-center justify-between py-3 border-b border-dark-700 last:border-0"
+            class="flex items-center justify-between py-3 min-h-[44px] border-b border-dark-700 last:border-0"
           >
-            <div>
-              <p class="text-white font-medium">#{{ order.id }}</p>
+            <div class="min-w-0">
+              <p class="text-white font-medium font-mono truncate">{{ order.orderNumber || `#${order.id}` }}</p>
               <p class="text-dark-400 text-sm capitalize">{{ order.paymentStatus || order.status }}</p>
             </div>
-            <span class="text-white text-sm">{{ formatCents(order.totalCents) }}</span>
+            <span class="text-white text-sm shrink-0 ml-3">{{ formatCents(order.totalCents) }}</span>
           </NuxtLink>
         </div>
       </div>

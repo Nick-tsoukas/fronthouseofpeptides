@@ -7,8 +7,8 @@ export default defineEventHandler(async (event) => {
 
   await notifyOwnerPush({
     title: 'QBP Owner',
-    body: 'Push notifications are working. You’ll get alerts for paid orders and stock issues.',
-    url: '/admin',
+    body: 'Tap to open the owner app. You’ll get alerts for paid orders, labels, and stock.',
+    url: '/admin/orders',
     tag: 'qbp-push-test',
   })
 

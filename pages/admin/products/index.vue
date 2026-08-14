@@ -148,7 +148,7 @@
               <button
                 type="button"
                 class="w-full sm:flex-1 min-h-[48px] px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white font-semibold text-sm"
-                :disabled="!canSell(product.variants[0])"
+                :disabled="!canSell(product.variants[0]) || !online"
                 @click="openQuickSale(product, product.variants[0])"
               >
                 Quick Sale
@@ -197,7 +197,7 @@
               <button
                 type="button"
                 class="w-full sm:flex-1 min-h-[48px] px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white font-semibold text-sm shadow-sm shadow-emerald-500/10"
-                :disabled="!canSell(variant)"
+                :disabled="!canSell(variant) || !online"
                 @click="openQuickSale(product, variant)"
               >
                 Quick Sale
@@ -318,7 +318,7 @@
           <button
             type="button"
             class="flex-1 min-h-[48px] px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold"
-            :disabled="saleModal.loading"
+            :disabled="saleModal.loading || !online"
             @click="confirmQuickSale"
           >
             {{ saleModal.loading ? 'Saving…' : 'Confirm Sale' }}
@@ -397,6 +397,7 @@ definePageMeta({
   middleware: 'admin',
 })
 
+const { online } = useAdminOnline()
 const products = ref<any[]>([])
 const pending = ref(true)
 const error = ref('')
@@ -615,6 +616,10 @@ async function fetchProducts() {
 
 async function confirmQuickSale() {
   saleModal.error = ''
+  if (!online.value) {
+    saleModal.error = 'You are offline. Reconnect to record a sale.'
+    return
+  }
   const qty = Number(saleModal.quantity)
   if (!Number.isInteger(qty) || qty <= 0) {
     saleModal.error = 'Quantity must be a positive integer.'
@@ -661,6 +666,10 @@ async function confirmQuickSale() {
 
 async function confirmStockAdjust() {
   stockModal.error = ''
+  if (!online.value) {
+    stockModal.error = 'You are offline. Reconnect to update stock.'
+    return
+  }
   const qty = Number(stockModal.quantity)
   if (!Number.isInteger(qty) || qty <= 0) {
     stockModal.error = 'Quantity must be a positive integer.'

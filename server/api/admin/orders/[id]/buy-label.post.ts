@@ -6,6 +6,27 @@ import {
   sanitizeShippoErrorText,
   isShippoRateExpiredError,
 } from '~/server/utils/shippo'
+import { notifyOwnerPush } from '~/server/utils/ownerPush'
+
+function pushLabelReady(orderId: number | string, orderNumber: string | null) {
+  const label = orderNumber || `Order #${orderId}`
+  void notifyOwnerPush({
+    title: 'Shipping label ready',
+    body: `Label and tracking are ready for order ${label}`,
+    url: `/admin/orders/${orderId}`,
+    tag: `order-${orderId}-label`,
+  })
+}
+
+function pushLabelFailed(orderId: number | string, orderNumber: string | null) {
+  const label = orderNumber || `Order #${orderId}`
+  void notifyOwnerPush({
+    title: 'Label purchase failed',
+    body: `Review shipping details for order ${label}`,
+    url: `/admin/orders/${orderId}`,
+    tag: `order-${orderId}-label-fail`,
+  })
+}
 
 function hasShippingAddress(attrs: Record<string, any>): boolean {
   const line1 = attrs.shippingAddressLine1 || attrs.shippingAddress1
@@ -213,6 +234,9 @@ export default defineEventHandler(async (event) => {
             strapiSaveFailed: true,
           }
         }
+        if (attrs.shippingStatus !== 'label_purchased') {
+          pushLabelReady(orderId, orderNumber)
+        }
         return {
           ok: true,
           orderNumber,
@@ -259,6 +283,8 @@ export default defineEventHandler(async (event) => {
           labelErrorMessage: errorMessage,
           shippoTransactionId: null,
         })
+
+        pushLabelFailed(orderId, orderNumber)
 
         logBuyLabelDiagnostics({
           ...baseLog,
@@ -407,6 +433,8 @@ export default defineEventHandler(async (event) => {
       labelErrorMessage: expired ? message : detail.slice(0, 400),
     })
 
+    pushLabelFailed(orderId, orderNumber)
+
     logBuyLabelDiagnostics({
       ...baseLog,
       step: 'shippo_transaction_create',
@@ -495,6 +523,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    pushLabelReady(orderId, orderNumber)
     return {
       ok: true,
       orderNumber,
@@ -538,5 +567,6 @@ export default defineEventHandler(async (event) => {
     labelErrorMessage: errorMessage,
   })
 
+  pushLabelFailed(orderId, orderNumber)
   return safeFail(event, 502, 'shippo_error', errorMessage, errorMessage, testMode)
 })

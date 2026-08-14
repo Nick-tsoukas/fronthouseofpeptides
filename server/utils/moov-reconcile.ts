@@ -392,13 +392,11 @@ export async function applyVerifiedTransferToOrder(opts: {
   }
 
   const orderLabel = attrs.orderNumber || `Order #${orderId}`
-  const total = ((Number(attrs.totalCents) || 0) / 100).toFixed(2)
-  const customer = String(attrs.customerName || '').trim()
 
   if (shouldNotifyPaid) {
     void notifyOwnerPush({
       title: 'New paid order',
-      body: customer ? `${orderLabel} · $${total} · ${customer}` : `${orderLabel} · $${total}`,
+      body: `${orderLabel} is ready to ship.`,
       url: `/admin/orders/${orderId}`,
       tag: `order-${orderId}-paid`,
     })
@@ -419,7 +417,7 @@ export async function applyVerifiedTransferToOrder(opts: {
       body:
         alert.newInventory <= 0
           ? `${alert.label} is now at 0.`
-          : `${alert.label} has ${alert.newInventory} left.`,
+          : `${alert.label} is running low.`,
       url: '/admin/products',
       tag: `stock-${alert.label}`.slice(0, 48),
     })

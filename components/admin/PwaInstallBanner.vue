@@ -1,7 +1,8 @@
 <template>
   <div
     v-if="visible"
-    class="lg:hidden fixed inset-x-0 bottom-0 z-[80] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-none"
+    class="lg:hidden fixed inset-x-0 z-[80] px-3 pointer-events-none"
+    style="bottom: calc(4.25rem + env(safe-area-inset-bottom))"
   >
     <div
       class="pointer-events-auto mx-auto max-w-md rounded-2xl border border-cyan-500/25 bg-dark-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 px-4 py-3.5 flex items-center gap-3"

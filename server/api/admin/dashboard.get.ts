@@ -108,6 +108,7 @@ export default defineEventHandler(async (event) => {
       const a = entry.attributes || {}
       return {
         id: entry.id,
+        orderNumber: a.orderNumber || null,
         paymentStatus: a.paymentStatus || null,
         status: a.status || null,
         totalCents:
