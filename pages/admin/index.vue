@@ -45,6 +45,9 @@
           <NuxtLink to="/admin/settings" class="min-h-[48px] p-4 bg-dark-800 hover:bg-dark-700 rounded-xl border border-dark-600 text-center text-white text-sm font-medium inline-flex items-center justify-center">
             Settings
           </NuxtLink>
+          <NuxtLink to="/admin/install" class="min-h-[48px] p-4 bg-dark-800 hover:bg-dark-700 rounded-xl border border-dark-600 text-center text-white text-sm font-medium inline-flex items-center justify-center">
+            Install on phone
+          </NuxtLink>
         </div>
       </div>
 

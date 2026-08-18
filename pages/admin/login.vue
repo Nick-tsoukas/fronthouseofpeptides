@@ -42,13 +42,21 @@
         </form>
       </div>
 
-      <div class="text-center mt-6">
+      <div class="text-center mt-6 space-y-3">
         <NuxtLink
-          to="/"
-          class="inline-flex min-h-[44px] items-center text-dark-400 hover:text-white text-sm transition-colors"
+          to="/admin/install"
+          class="inline-flex min-h-[44px] items-center justify-center text-cyan-400 hover:text-cyan-300 text-sm font-medium"
         >
-          ← Back to Store
+          Install QBP Owner on this phone
         </NuxtLink>
+        <div>
+          <NuxtLink
+            to="/"
+            class="inline-flex min-h-[44px] items-center text-dark-400 hover:text-white text-sm transition-colors"
+          >
+            ← Back to Store
+          </NuxtLink>
+        </div>
       </div>
     </div>
   </div>

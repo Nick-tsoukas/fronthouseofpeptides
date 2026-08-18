@@ -96,11 +96,8 @@ export default defineNuxtConfig({
         { name: 'mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
-        { name: 'apple-mobile-web-app-title', content: 'QBP' },
-        { name: 'application-name', content: 'QBP' },
       ],
       link: [
-        { rel: 'manifest', href: '/manifest.webmanifest' },
         { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icons/favicon-32.png' },
         { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/icons/favicon-16.png' },
         { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },

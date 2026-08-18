@@ -5,6 +5,8 @@
 export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) return
 
+  if (to.path === '/admin/install') return
+
   if (to.path === '/admin/login') {
     try {
       const session = await $fetch<{ authenticated?: boolean }>('/api/admin/session', {

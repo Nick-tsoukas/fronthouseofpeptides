@@ -24,4 +24,14 @@ const banner = computed(() => {
   if (!s?.announcementBannerEnabled) return ''
   return (s.announcementBanner || '').trim()
 })
+
+useHead({
+  meta: [
+    { name: 'apple-mobile-web-app-title', content: 'QBP' },
+    { name: 'application-name', content: 'QBP' },
+  ],
+  link: [
+    { rel: 'manifest', href: '/manifest.webmanifest' },
+  ],
+})
 </script>

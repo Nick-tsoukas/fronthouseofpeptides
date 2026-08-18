@@ -294,6 +294,20 @@
       </div>
 
       <div class="bg-dark-900 rounded-xl border border-dark-700 p-5">
+        <h2 class="text-lg font-semibold text-white mb-2">Install on this phone</h2>
+        <p class="text-dark-400 text-sm mb-4 leading-relaxed">
+          Owners should use the QBP Owner home-screen app for orders and labels.
+          Open the install page, add it, then sign in.
+        </p>
+        <NuxtLink
+          to="/admin/install"
+          class="inline-flex min-h-[48px] items-center px-4 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold"
+        >
+          Open install page
+        </NuxtLink>
+      </div>
+
+      <div class="bg-dark-900 rounded-xl border border-dark-700 p-5">
         <h2 class="text-lg font-semibold text-white mb-2">Owner push notifications</h2>
         <p class="text-dark-400 text-sm mb-4 leading-relaxed">
           Get a phone alert when an order is paid, a payment fails, or stock runs low. Best on the installed QBP Owner app.

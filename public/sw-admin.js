@@ -1,7 +1,9 @@
 /* Quantum Bio Owner Admin PWA service worker */
-const CACHE = 'qbp-admin-v3'
+const CACHE = 'qbp-admin-v4'
 const PRECACHE = [
   '/admin',
+  '/admin/login',
+  '/admin/install',
   '/admin.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

@@ -15,7 +15,7 @@
       <div class="min-w-0 flex-1">
         <p class="text-white text-sm font-semibold leading-tight">Install QBP Owner</p>
         <p class="text-dark-400 text-xs mt-0.5 leading-snug">
-          Add to your home screen for quick inventory &amp; sales.
+          Home screen app for orders, labels, and inventory.
         </p>
       </div>
       <div class="flex flex-col gap-1.5 shrink-0">
@@ -53,7 +53,7 @@ function checkStandalone() {
 
 function install() {
   if (!deferredPrompt.value) {
-    alert('To install: tap Share → Add to Home Screen')
+    if (import.meta.client) window.location.assign('/admin/install')
     return
   }
   deferredPrompt.value.prompt()
