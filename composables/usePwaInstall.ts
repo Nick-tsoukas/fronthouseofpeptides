@@ -1,0 +1,82 @@
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+function readStandalone() {
+  if (!import.meta.client) return false
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    Boolean((navigator as any).standalone)
+  )
+}
+
+function readIOS() {
+  if (!import.meta.client) return false
+  const ua = navigator.userAgent || ''
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  )
+}
+
+export function usePwaInstall(kind: 'admin' | 'store' = 'admin') {
+  const adminPrompt = useState<BeforeInstallPromptEvent | null>('pwa-admin-prompt', () => null)
+  const storePrompt = useState<BeforeInstallPromptEvent | null>('pwa-store-prompt', () => null)
+  const attached = useState('pwa-install-attached', () => false)
+  const justInstalled = useState('pwa-just-installed', () => false)
+  const standalone = useState('pwa-standalone', () => false)
+  const ios = useState('pwa-ios', () => false)
+
+  const promptEvent = computed(() => (kind === 'admin' ? adminPrompt.value : storePrompt.value))
+  const canNativeInstall = computed(() => Boolean(promptEvent.value) && !standalone.value)
+  const showInstall = computed(() => !standalone.value && !justInstalled.value)
+
+  function attach() {
+    if (!import.meta.client || attached.value) return
+    attached.value = true
+    standalone.value = readStandalone()
+    ios.value = readIOS()
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault()
+      const ev = event as BeforeInstallPromptEvent
+      if (window.location.pathname.startsWith('/admin')) {
+        adminPrompt.value = ev
+      } else {
+        storePrompt.value = ev
+      }
+    })
+
+    window.addEventListener('appinstalled', () => {
+      adminPrompt.value = null
+      storePrompt.value = null
+      justInstalled.value = true
+      standalone.value = true
+    })
+  }
+
+  async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unavailable'> {
+    const ev = promptEvent.value
+    if (!ev?.prompt) return 'unavailable'
+    await ev.prompt()
+    const { outcome } = await ev.userChoice
+    if (kind === 'admin') adminPrompt.value = null
+    else storePrompt.value = null
+    if (outcome === 'accepted') {
+      justInstalled.value = true
+      standalone.value = true
+    }
+    return outcome
+  }
+
+  return {
+    canNativeInstall,
+    showInstall,
+    standalone,
+    ios,
+    justInstalled,
+    attach,
+    promptInstall,
+  }
+}

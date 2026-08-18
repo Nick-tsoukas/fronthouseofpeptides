@@ -1,5 +1,5 @@
 /* Quantum Bio Peptides storefront PWA service worker */
-const CACHE = 'qbp-store-v1'
+const CACHE = 'qbp-store-v2'
 const PRECACHE = [
   '/',
   '/manifest.webmanifest',
@@ -13,7 +13,9 @@ const PRECACHE = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches.open(CACHE).then(async (cache) => {
+      await Promise.all(PRECACHE.map((url) => cache.add(url).catch(() => undefined)))
+    }).then(() => self.skipWaiting())
   )
 })
 

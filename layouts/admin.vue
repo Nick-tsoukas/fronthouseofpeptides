@@ -5,7 +5,7 @@
       class="lg:hidden sticky top-0 z-30 bg-dark-900/95 backdrop-blur border-b border-dark-700 px-4 py-3 flex items-center justify-between pt-[max(0.75rem,env(safe-area-inset-top))]"
     >
       <NuxtLink to="/admin" class="flex items-center gap-2 min-h-[44px]">
-        <img src="/icons/icon-192.png" alt="" class="w-8 h-8 rounded-lg" />
+        <QbpAppIcon class="w-8 h-8 rounded-lg overflow-hidden shrink-0" />
         <span class="text-lg font-semibold text-white">Admin</span>
       </NuxtLink>
       <button
@@ -37,7 +37,7 @@
     >
       <div class="h-16 flex items-center justify-between px-5 border-b border-dark-700 shrink-0">
         <NuxtLink to="/admin" class="flex items-center gap-2" @click="sidebarOpen = false">
-          <img src="/icons/icon-192.png" alt="" class="w-8 h-8 rounded-lg" />
+          <QbpAppIcon class="w-8 h-8 rounded-lg overflow-hidden shrink-0" />
           <span class="text-lg font-semibold text-white">Admin Panel</span>
         </NuxtLink>
         <button
