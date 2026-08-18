@@ -128,6 +128,60 @@
     <div v-if="orders.length > 0" class="mt-4 text-dark-400 text-sm text-center">
       Showing {{ orders.length }} order{{ orders.length === 1 ? '' : 's' }}
     </div>
+
+    <div class="mt-10 max-w-xl rounded-xl border border-red-500/25 bg-red-500/5 p-4 sm:p-5">
+      <h2 class="text-white font-semibold mb-1">Clear all orders</h2>
+      <p class="text-dark-400 text-sm mb-4">
+        Permanently deletes every order and line item. Products and current stock are not changed. This cannot be undone.
+      </p>
+      <button
+        type="button"
+        class="min-h-[48px] px-4 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-semibold text-sm"
+        @click="clearOpen = true"
+      >
+        Clear all orders
+      </button>
+    </div>
+
+    <div
+      v-if="clearOpen"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/65 p-0 sm:p-4"
+      @click.self="clearOpen = false"
+    >
+      <div class="w-full sm:max-w-md bg-dark-900 border border-dark-700 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <h3 class="text-lg font-semibold text-white mb-2">Delete every order?</h3>
+        <p class="text-dark-300 text-sm mb-4">
+          Type <span class="text-white font-mono">DELETE ALL ORDERS</span> to confirm. Inventory will not be restored.
+        </p>
+        <input
+          v-model="clearConfirm"
+          type="text"
+          autocomplete="off"
+          class="w-full min-h-[48px] px-4 rounded-xl bg-dark-800 border border-dark-600 text-white mb-3 focus:outline-none focus:border-red-400"
+          placeholder="DELETE ALL ORDERS"
+        />
+        <p v-if="clearError" class="text-red-400 text-sm mb-3">{{ clearError }}</p>
+        <p v-if="clearSuccess" class="text-emerald-400 text-sm mb-3">{{ clearSuccess }}</p>
+        <div class="flex flex-col-reverse sm:flex-row gap-3">
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-dark-800 border border-dark-600 text-white"
+            :disabled="clearLoading"
+            @click="clearOpen = false"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white font-semibold"
+            :disabled="clearLoading || clearConfirm.trim() !== 'DELETE ALL ORDERS'"
+            @click="clearAllOrders"
+          >
+            {{ clearLoading ? 'Deleting…' : 'Delete all' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -144,6 +198,11 @@ const search = ref('')
 const pending = ref(true)
 const error = ref('')
 const orders = ref<any[]>([])
+const clearOpen = ref(false)
+const clearConfirm = ref('')
+const clearLoading = ref(false)
+const clearError = ref('')
+const clearSuccess = ref('')
 
 const filters = [
   { value: 'all', label: 'All' },
@@ -198,6 +257,33 @@ watch(search, () => {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(fetchOrders, 300)
 })
+
+async function clearAllOrders() {
+  clearError.value = ''
+  clearSuccess.value = ''
+  if (clearConfirm.value.trim() !== 'DELETE ALL ORDERS') {
+    clearError.value = 'Type DELETE ALL ORDERS to confirm.'
+    return
+  }
+  clearLoading.value = true
+  try {
+    const res = await $fetch<{ ok: boolean; message: string }>(
+      '/api/admin/orders/clear-all',
+      {
+        method: 'POST',
+        credentials: 'include',
+        body: { confirm: 'DELETE ALL ORDERS' },
+      }
+    )
+    clearSuccess.value = res.message || 'Orders cleared.'
+    clearConfirm.value = ''
+    await fetchOrders()
+  } catch (err: any) {
+    clearError.value = err.data?.message || err.message || 'Could not clear orders.'
+  } finally {
+    clearLoading.value = false
+  }
+}
 
 onMounted(fetchOrders)
 </script>

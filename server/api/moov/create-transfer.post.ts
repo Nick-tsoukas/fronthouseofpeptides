@@ -14,7 +14,7 @@ import {
 } from '~/server/utils/moov'
 import { applyVerifiedTransferToOrder } from '~/server/utils/moov-reconcile'
 import {
-  getShippoConfig,
+  resolveShippoConfig,
   shippoFetch,
   sanitizeRate,
   type ShippoShipment,
@@ -199,7 +199,7 @@ export default defineEventHandler(async (event: H3Event) => {
   // Soft-fail: expired Shippo shipments must not block Moov charge if cents are already stored.
   let shippingCostCents = Number(attrs.shippingCostCents) || 0
   if (attrs.shippoShipmentId && attrs.shippoRateId) {
-    const shippoConfig = getShippoConfig(event)
+    const shippoConfig = await resolveShippoConfig(event)
     if (shippoConfig.apiToken) {
       try {
         const shipment = await shippoFetch<ShippoShipment>(

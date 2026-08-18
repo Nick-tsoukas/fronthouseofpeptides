@@ -9,6 +9,7 @@ import {
   type ShippoRate,
   type ShippoShipment,
 } from '~/server/utils/shippo'
+import { fetchStoreSettings } from '~/server/utils/storeSettings'
 
 interface RequestBody {
   orderId?: number
@@ -25,7 +26,8 @@ export default defineEventHandler(async (event: H3Event) => {
     ? { Authorization: `Bearer ${strapiToken}`, 'Content-Type': 'application/json' }
     : { 'Content-Type': 'application/json' }
 
-  const shippoConfig = getShippoConfig(event)
+  const { settings: storeSettings } = await fetchStoreSettings(event)
+  const shippoConfig = getShippoConfig(event, storeSettings)
   if (!shippoConfig.apiToken) {
     throw createError({ statusCode: 500, message: 'Shipping integration is not configured.' })
   }
@@ -81,7 +83,7 @@ export default defineEventHandler(async (event: H3Event) => {
   }
 
   const allowedCarriers = getAllowedShippoCarriers({
-    shippoAllowedCarriers: String((config as any).shippoAllowedCarriers || ''),
+    storeAllowedCarriers: storeSettings.allowedCarriers,
   })
   if (!isAllowedShippoCarrier(selectedRate, allowedCarriers)) {
     throw createError({

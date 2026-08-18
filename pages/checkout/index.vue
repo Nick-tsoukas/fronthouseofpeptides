@@ -18,8 +18,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div>
-            <p class="text-yellow-400 font-semibold text-sm">MOOV TEST MODE — NO REAL MONEY</p>
-            <p class="text-yellow-200/70 text-xs mt-0.5">No real money will be charged. Use Moov test credentials only.</p>
+            <p class="text-yellow-400 font-semibold text-sm">Test mode — no real charge</p>
+            <p class="text-yellow-200/70 text-xs mt-0.5">This store is in payment test mode. No real money will be charged.</p>
           </div>
         </div>
 
@@ -31,8 +31,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <p class="text-blue-400 font-semibold text-sm">SHIPPO TEST MODE — NO REAL POSTAGE</p>
-            <p class="text-blue-200/70 text-xs mt-0.5">Test shipping rates only. No real shipping label will be purchased.</p>
+            <p class="text-blue-400 font-semibold text-sm">Test shipping rates</p>
+            <p class="text-blue-200/70 text-xs mt-0.5">Shipping is in test mode. No live postage is purchased at checkout.</p>
           </div>
         </div>
       </div>
@@ -229,7 +229,12 @@
                 class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
               />
               <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
-                I have reviewed and agree to the Terms of Sale, Shipping Policy, Refund Policy, and Privacy Policy.
+                I have reviewed and agree to the
+                <NuxtLink to="/terms" target="_blank" class="text-cyan-400 hover:text-cyan-300">Terms of Service</NuxtLink>,
+                <NuxtLink to="/privacy" target="_blank" class="text-cyan-400 hover:text-cyan-300">Privacy Policy</NuxtLink>,
+                <NuxtLink to="/shipping-policy" target="_blank" class="text-cyan-400 hover:text-cyan-300">Shipping Policy</NuxtLink>,
+                <NuxtLink to="/refund-policy" target="_blank" class="text-cyan-400 hover:text-cyan-300">Refund Policy</NuxtLink>, and
+                <NuxtLink to="/research-use-only" target="_blank" class="text-cyan-400 hover:text-cyan-300">Research Use Only</NuxtLink> policy.
               </span>
             </label>
 
@@ -244,6 +249,11 @@
                 I understand that an order may be refused or cancelled if the information provided cannot be verified.
               </span>
             </label>
+
+            <p class="text-dark-400 text-xs leading-relaxed pt-1">
+              {{ ruoShort }}
+              <NuxtLink to="/research-use-only" class="text-cyan-400 hover:text-cyan-300">Read the full policy</NuxtLink>
+            </p>
           </div>
 
           <!-- Error -->
@@ -423,6 +433,13 @@
 import { reactive, ref, computed, watch } from 'vue'
 import { useCartStore } from '~/stores/cart'
 import { CURRENCY } from '~/constants'
+
+const { data: storeSettings } = await usePublicStoreSettings()
+const ruoShort = computed(
+  () =>
+    storeSettings.value?.researchUseOnlyShortDisclaimer ||
+    'For laboratory and research use only. Not for human or animal consumption.'
+)
 
 interface ShippingRate {
   rateId: string

@@ -1,5 +1,6 @@
 import { SHIPPING, CURRENCY, CART } from '~/constants'
 import { sendOrderRequestEmails } from '~/server/utils/sendOrderEmails'
+import { getEmailBrand } from '~/server/utils/storeSettings'
 
 interface CartItem {
   productId: number
@@ -290,6 +291,7 @@ export default defineEventHandler(async (event) => {
       smtpPass: config.smtpPass as string,
       orderFromEmail: config.orderFromEmail as string,
       ownerOrderEmail: config.ownerOrderEmail as string,
+      brand: await getEmailBrand(event),
     }
   ).catch((err) => {
     console.error(`[email] Unexpected error for order #${orderId}:`, err)

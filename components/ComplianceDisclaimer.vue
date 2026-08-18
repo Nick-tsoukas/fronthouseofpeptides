@@ -9,9 +9,7 @@
           <h3 class="text-xl font-semibold text-amber-400">Research Use Only — Not for Human Consumption</h3>
         </div>
         <p class="text-dark-300 leading-relaxed max-w-2xl mx-auto">
-          All products are intended strictly for laboratory and research purposes by qualified professionals. 
-          These compounds are not approved for human or veterinary use and must not be used for diagnostic, 
-          therapeutic, or any other unauthorized purposes.
+          {{ disclaimer }}
         </p>
       </div>
     </div>
@@ -19,4 +17,10 @@
 </template>
 
 <script setup lang="ts">
+const { data } = await usePublicStoreSettings()
+const disclaimer = computed(
+  () =>
+    data.value?.researchUseOnlyShortDisclaimer ||
+    'For laboratory and research use only. Not for human or animal consumption. Not intended to diagnose, treat, cure, or prevent any disease.'
+)
 </script>

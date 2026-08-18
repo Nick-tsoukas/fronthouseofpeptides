@@ -11,6 +11,7 @@ import {
 import { sendPaidOrderEmails } from '~/server/utils/sendOrderEmails'
 import { createInventoryAdjustmentLog } from '~/server/utils/inventory-log'
 import { notifyOwnerPush } from '~/server/utils/ownerPush'
+import { getEmailBrand } from '~/server/utils/storeSettings'
 
 export interface InventoryCommitResult {
   anyTracked: boolean
@@ -385,6 +386,7 @@ export async function applyVerifiedTransferToOrder(opts: {
         smtpPass: config.smtpPass as string,
         orderFromEmail: config.orderFromEmail as string,
         ownerOrderEmail: config.ownerOrderEmail as string,
+        brand: await getEmailBrand(event),
       }
     ).catch((err: any) => {
       console.error('Paid order email failed:', err?.message || err)

@@ -80,7 +80,7 @@
               Thank you. Your payment went through and we’re preparing your order.
             </template>
             <template v-else>
-              Your order was submitted. We’re waiting on final confirmation from Moov.
+              Your order was submitted. We’re waiting on final payment confirmation.
             </template>
           </p>
         </div>
@@ -89,7 +89,7 @@
           v-if="isTestMode"
           class="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center"
         >
-          <p class="text-amber-400 font-semibold text-sm">MOOV TEST MODE — NO REAL MONEY</p>
+          <p class="text-amber-400 font-semibold text-sm">Test mode — no real charge</p>
         </div>
 
         <div class="rounded-xl border border-dark-700/80 bg-dark-950/50 px-4 py-4 space-y-3 text-sm mb-6">

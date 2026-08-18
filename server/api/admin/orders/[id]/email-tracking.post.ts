@@ -1,5 +1,6 @@
 import { requireAdminAuth } from '~/server/utils/adminAuth'
 import { sendTrackingEmail } from '~/server/utils/sendOrderEmails'
+import { getEmailBrand } from '~/server/utils/storeSettings'
 
 /**
  * POST /api/admin/orders/:id/email-tracking
@@ -59,6 +60,7 @@ export default defineEventHandler(async (event) => {
       smtpUser: config.smtpUser as string,
       smtpPass: config.smtpPass as string,
       orderFromEmail: config.orderFromEmail as string,
+      brand: await getEmailBrand(event),
     }
   )
 

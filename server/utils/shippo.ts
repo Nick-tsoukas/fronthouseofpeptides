@@ -25,26 +25,66 @@ export interface ShippoConfig {
   }
 }
 
-export function getShippoConfig(event: any): ShippoConfig {
+type StoreShipFromOverlay = {
+  shipFromName?: string
+  shipFromCompany?: string
+  shipFromAddressLine1?: string
+  shipFromAddressLine2?: string
+  shipFromCity?: string
+  shipFromState?: string
+  shipFromPostalCode?: string
+  shipFromCountry?: string
+  shipFromPhone?: string
+  shipFromEmail?: string
+  defaultPackageLengthIn?: string
+  defaultPackageWidthIn?: string
+  defaultPackageHeightIn?: string
+  defaultPackageWeightOz?: string
+}
+
+function pickEnvOrStore(envValue: unknown, storeValue?: string): string {
+  const env = String(envValue || '').trim()
+  if (env) return env
+  return String(storeValue || '').trim()
+}
+
+/**
+ * Env ship-from wins when configured. Store Settings fill missing fields only.
+ * Parcel env vars win when set; otherwise Store Settings; otherwise built-in defaults.
+ */
+export function getShippoConfig(event: any, store?: StoreShipFromOverlay | null): ShippoConfig {
   const config = useRuntimeConfig(event)
 
   const from: ShippoConfig['from'] = {
-    name: (config.shippingFromName as string) || '',
-    street1: (config.shippingFromStreet1 as string) || '',
-    city: (config.shippingFromCity as string) || '',
-    state: (config.shippingFromState as string) || '',
-    zip: (config.shippingFromZip as string) || '',
-    country: ((config.shippingFromCountry as string) || 'US').toUpperCase(),
+    name: pickEnvOrStore(config.shippingFromName, store?.shipFromName),
+    street1: pickEnvOrStore(config.shippingFromStreet1, store?.shipFromAddressLine1),
+    city: pickEnvOrStore(config.shippingFromCity, store?.shipFromCity),
+    state: pickEnvOrStore(config.shippingFromState, store?.shipFromState),
+    zip: pickEnvOrStore(config.shippingFromZip, store?.shipFromPostalCode),
+    country: (pickEnvOrStore(config.shippingFromCountry, store?.shipFromCountry) || 'US').toUpperCase(),
   }
 
-  const company = (config.shippingFromCompany as string || '').trim()
-  const street2 = (config.shippingFromStreet2 as string || '').trim()
-  const phone = (config.shippingFromPhone as string || '').trim()
-  const email = (config.shippingFromEmail as string || '').trim()
+  const company = pickEnvOrStore(config.shippingFromCompany, store?.shipFromCompany)
+  const street2 = pickEnvOrStore(config.shippingFromStreet2, store?.shipFromAddressLine2)
+  const phone = pickEnvOrStore(config.shippingFromPhone, store?.shipFromPhone)
+  const email = pickEnvOrStore(config.shippingFromEmail, store?.shipFromEmail)
   if (company) from.company = company
   if (street2) from.street2 = street2
   if (phone) from.phone = phone
   if (email) from.email = email
+
+  const length = process.env.DEFAULT_PARCEL_LENGTH_IN
+    ? String(config.defaultParcelLengthIn || '6')
+    : String(store?.defaultPackageLengthIn || config.defaultParcelLengthIn || '6')
+  const width = process.env.DEFAULT_PARCEL_WIDTH_IN
+    ? String(config.defaultParcelWidthIn || '4')
+    : String(store?.defaultPackageWidthIn || config.defaultParcelWidthIn || '4')
+  const height = process.env.DEFAULT_PARCEL_HEIGHT_IN
+    ? String(config.defaultParcelHeightIn || '2')
+    : String(store?.defaultPackageHeightIn || config.defaultParcelHeightIn || '2')
+  const weight = process.env.DEFAULT_PARCEL_WEIGHT_OZ
+    ? String(config.defaultParcelWeightOz || '6')
+    : String(store?.defaultPackageWeightOz || config.defaultParcelWeightOz || '6')
 
   return {
     apiToken: config.shippoApiToken as string,
@@ -52,11 +92,11 @@ export function getShippoConfig(event: any): ShippoConfig {
     from,
     // Shippo requires snake_case parcel unit fields.
     parcel: {
-      length: String((config.defaultParcelLengthIn as string) || '6'),
-      width: String((config.defaultParcelWidthIn as string) || '4'),
-      height: String((config.defaultParcelHeightIn as string) || '2'),
+      length,
+      width,
+      height,
       distance_unit: 'in',
-      weight: String((config.defaultParcelWeightOz as string) || '6'),
+      weight,
       mass_unit: 'oz',
     },
   }
@@ -202,20 +242,30 @@ export function toCentsFromDecimal(amount: string): number {
   return Number(dollars) * 100 + Number(normalizedCents)
 }
 
-/**
- * Carriers offered to customers at checkout.
- * Override with SHIPPO_ALLOWED_CARRIERS=usps,ups (comma-separated, case-insensitive).
- * Default is USPS only — matches the activated Shippo carrier in production.
- */
-export function getAllowedShippoCarriers(config?: { shippoAllowedCarriers?: string }): string[] {
-  const raw =
-    (config?.shippoAllowedCarriers && String(config.shippoAllowedCarriers).trim()) ||
-    process.env.SHIPPO_ALLOWED_CARRIERS ||
-    'usps'
+function parseCarrierList(raw: string): string[] {
   return raw
     .split(',')
     .map((c) => c.trim().toLowerCase())
     .filter(Boolean)
+}
+
+/**
+ * Carriers offered to customers at checkout.
+ * SHIPPO_ALLOWED_CARRIERS env is the override when set.
+ * Otherwise Store Settings allowedCarriers is used.
+ * Default is USPS only.
+ */
+export function getAllowedShippoCarriers(config?: {
+  shippoAllowedCarriers?: string
+  storeAllowedCarriers?: string
+}): string[] {
+  const envRaw = (process.env.SHIPPO_ALLOWED_CARRIERS || '').trim()
+  if (envRaw) return parseCarrierList(envRaw)
+  const storeRaw = (config?.storeAllowedCarriers || '').trim()
+  if (storeRaw) return parseCarrierList(storeRaw)
+  const configRaw = (config?.shippoAllowedCarriers || '').trim()
+  if (configRaw) return parseCarrierList(configRaw)
+  return ['usps']
 }
 
 export function isAllowedShippoCarrier(
@@ -335,4 +385,11 @@ export async function getShippoTransaction(
   transactionId: string
 ): Promise<ShippoTransaction> {
   return await shippoFetch<ShippoTransaction>(config, `/transactions/${transactionId}`)
+}
+
+/** Merge env ship-from with Store Settings fallbacks. Does not change label purchase rules. */
+export async function resolveShippoConfig(event: any): Promise<ShippoConfig> {
+  const { fetchStoreSettings } = await import('~/server/utils/storeSettings')
+  const { settings } = await fetchStoreSettings(event)
+  return getShippoConfig(event, settings)
 }

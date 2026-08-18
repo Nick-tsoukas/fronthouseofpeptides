@@ -11,6 +11,7 @@ import {
   type ShippoShipment,
   type ShippoRate,
 } from '~/server/utils/shippo'
+import { fetchStoreSettings } from '~/server/utils/storeSettings'
 
 const TERMS_VERSION = '2026-06-20'
 const RESEARCH_ATTESTATION_VERSION = '2026-06-20'
@@ -29,7 +30,8 @@ export default defineEventHandler(async (event: H3Event) => {
     ? { Authorization: `Bearer ${strapiToken}`, 'Content-Type': 'application/json' }
     : { 'Content-Type': 'application/json' }
 
-  const shippoConfig = getShippoConfig(event)
+  const { settings: storeSettings } = await fetchStoreSettings(event)
+  const shippoConfig = getShippoConfig(event, storeSettings)
   if (!shippoConfig.apiToken) {
     throw createError({ statusCode: 500, message: 'Shipping integration is not configured.' })
   }
@@ -219,7 +221,7 @@ export default defineEventHandler(async (event: H3Event) => {
 
   const rates: ShippoRate[] = shipment.rates || []
   const allowedCarriers = getAllowedShippoCarriers({
-    shippoAllowedCarriers: String((config as any).shippoAllowedCarriers || ''),
+    storeAllowedCarriers: storeSettings.allowedCarriers,
   })
   const shippoMode = String(config.public?.shippoMode || config.shippoMode || 'test').toLowerCase()
   const testMode = shippoMode !== 'live' && shippoMode !== 'production'

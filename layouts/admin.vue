@@ -141,6 +141,12 @@
       >
         You are offline. Reconnect to manage orders.
       </div>
+      <div
+        v-if="testModeActive"
+        class="mx-4 mt-3 lg:mx-8 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 leading-relaxed"
+      >
+        Test mode active — no real payment/postage behavior should be assumed live.
+      </div>
       <slot />
     </main>
 
@@ -203,7 +209,13 @@ const route = useRoute()
 const sidebarOpen = ref(false)
 const { logout } = useAdmin()
 const { online } = useAdminOnline()
+const config = useRuntimeConfig()
 const orderDetailPage = computed(() => /^\/admin\/orders\/[^/]+$/.test(route.path))
+const testModeActive = computed(() => {
+  const moov = String(config.public.moovMode || 'test').toLowerCase()
+  const shippo = String(config.public.shippoMode || 'test').toLowerCase()
+  return moov !== 'live' || shippo !== 'live'
+})
 
 useHead({
   titleTemplate: (title) => (title ? `${title} · QBP Owner` : 'QBP Owner'),

@@ -8,8 +8,8 @@
         <NuxtLink to="/" class="flex items-center gap-2 min-w-0 flex-1">
           <div class="w-8 h-8 shrink-0 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-lg"></div>
           <span class="text-base sm:text-lg font-semibold text-white truncate">
-            <span class="sm:hidden">Quantum Bio</span>
-            <span class="hidden sm:inline">Quantum Bio Peptides</span>
+            <span class="sm:hidden">{{ shortName }}</span>
+            <span class="hidden sm:inline">{{ storeName }}</span>
           </span>
         </NuxtLink>
 
@@ -56,4 +56,11 @@
 import { useCartStore } from '~/stores/cart'
 
 const cartStore = useCartStore()
+const { data } = await usePublicStoreSettings()
+const storeName = computed(() => data.value?.storeName || 'Quantum Bio Peptides')
+const shortName = computed(() => {
+  const name = storeName.value
+  if (name.length <= 18) return name
+  return name.replace(/\s+Peptides$/i, '').trim() || name
+})
 </script>

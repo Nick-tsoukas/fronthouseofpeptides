@@ -1,8 +1,8 @@
 import { type H3Event } from 'h3'
-import { getShippoConfig, shippoFetch } from '~/server/utils/shippo'
+import { resolveShippoConfig, shippoFetch } from '~/server/utils/shippo'
 
 export default defineEventHandler(async (event: H3Event) => {
-  const config = getShippoConfig(event)
+  const config = await resolveShippoConfig(event)
 
   if (!config.apiToken) {
     throw createError({ statusCode: 500, message: 'Shippo integration is not configured.' })

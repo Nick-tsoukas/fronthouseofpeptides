@@ -30,6 +30,20 @@ export interface OrderEmailData {
   items: OrderEmailItem[]
 }
 
+export interface EmailBrand {
+  storeName?: string
+  supportEmail?: string
+  websiteUrl?: string
+}
+
+function resolveBrand(brand?: EmailBrand): { storeName: string; supportEmail: string; websiteUrl: string } {
+  return {
+    storeName: (brand?.storeName || '').trim() || 'Quantum Bio Peptides',
+    supportEmail: (brand?.supportEmail || '').trim() || 'orders@quantumbiopeptides.com',
+    websiteUrl: (brand?.websiteUrl || '').trim() || 'https://quantumbiopeptides.com',
+  }
+}
+
 function formatPrice(n: number): string {
   return `$${n.toFixed(2)}`
 }
@@ -90,7 +104,8 @@ function totalsHtml(data: OrderEmailData): string {
 
 // ── Customer confirmation email ───────────────────────────────────────────────
 
-function buildCustomerHtml(data: OrderEmailData): string {
+function buildCustomerHtml(data: OrderEmailData, brand?: EmailBrand): string {
+  const { storeName, supportEmail } = resolveBrand(brand)
   const statusLabel = data.status === 'approved' ? 'Approved — Availability Confirmed' : 'Received — Pending Review'
   const nextSteps =
     data.status === 'approved'
@@ -116,7 +131,7 @@ function buildCustomerHtml(data: OrderEmailData): string {
 
     <!-- Header -->
     <div style="background:#0f172a;padding:32px;border-bottom:1px solid #2d2d2d;">
-      <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#6366f1;">Quantum Bio Peptides</p>
+      <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#6366f1;">${storeName}</p>
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#fff;">Research Order Request</h1>
     </div>
 
@@ -169,7 +184,7 @@ function buildCustomerHtml(data: OrderEmailData): string {
       <!-- Disclaimer -->
       <div style="background:#1a1a1a;border:1px solid #2d2d2d;border-radius:8px;padding:16px;margin-bottom:0;">
         <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.6;">
-          <strong style="color:#9ca3af;">Research Use Only Disclaimer:</strong> All products offered by Quantum Bio Peptides are strictly for laboratory and research purposes. These products are not intended for human consumption, veterinary use, or any use outside of a qualified research setting.
+          <strong style="color:#9ca3af;">Research Use Only Disclaimer:</strong> All products offered by ${storeName} are strictly for laboratory and research purposes. These products are not intended for human consumption, veterinary use, or any use outside of a qualified research setting.
         </p>
       </div>
     </div>
@@ -177,7 +192,7 @@ function buildCustomerHtml(data: OrderEmailData): string {
     <!-- Footer -->
     <div style="background:#0f172a;padding:20px 32px;border-top:1px solid #2d2d2d;">
       <p style="margin:0;font-size:12px;color:#6b7280;text-align:center;">
-        Quantum Bio Peptides &mdash; orders@quantumbiopeptides.com<br>
+        ${storeName} &mdash; ${supportEmail}<br>
         This email was sent because a research order request was submitted using this address.
       </p>
     </div>
@@ -188,7 +203,8 @@ function buildCustomerHtml(data: OrderEmailData): string {
 
 // ── Owner/admin notification email ────────────────────────────────────────────
 
-function buildOwnerHtml(data: OrderEmailData): string {
+function buildOwnerHtml(data: OrderEmailData, brand?: EmailBrand): string {
+  const { storeName } = resolveBrand(brand)
   const statusColor = data.status === 'approved' ? '#4ade80' : '#facc15'
 
   return `<!DOCTYPE html>
@@ -254,7 +270,7 @@ function buildOwnerHtml(data: OrderEmailData): string {
     <!-- Footer -->
     <div style="background:#0f172a;padding:16px 32px;border-top:1px solid #2d2d2d;">
       <p style="margin:0;font-size:12px;color:#6b7280;text-align:center;">
-        Quantum Bio Peptides Admin &mdash; Internal notification, do not forward.
+        ${storeName} Admin &mdash; Internal notification, do not forward.
       </p>
     </div>
   </div>
@@ -273,6 +289,7 @@ export async function sendOrderRequestEmails(
     smtpPass: string
     orderFromEmail: string
     ownerOrderEmail: string
+    brand?: EmailBrand
   }
 ): Promise<{ customerSent: boolean; ownerSent: boolean; errors: string[] }> {
   const errors: string[] = []
@@ -301,7 +318,7 @@ export async function sendOrderRequestEmails(
       from: config.orderFromEmail,
       to: data.email,
       subject: `Your research order request was received — #${data.orderId}`,
-      html: buildCustomerHtml(data),
+      html: buildCustomerHtml(data, config.brand),
     })
     customerSent = true
   } catch (err: any) {
@@ -316,7 +333,7 @@ export async function sendOrderRequestEmails(
         from: config.orderFromEmail,
         to: config.ownerOrderEmail,
         subject: `New research order request #${data.orderId} — ${data.status.replace('_', ' ')}`,
-        html: buildOwnerHtml(data),
+        html: buildOwnerHtml(data, config.brand),
       })
       ownerSent = true
     } catch (err: any) {
@@ -332,22 +349,24 @@ export interface PaidOrderEmailData extends OrderEmailData {
   orderNumber: string
 }
 
-function buildPaidCustomerHtml(data: PaidOrderEmailData): string {
+function buildPaidCustomerHtml(data: PaidOrderEmailData, brand?: EmailBrand): string {
+  const { storeName, supportEmail } = resolveBrand(brand)
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#0a0a0a;font-family:system-ui,sans-serif;color:#e5e7eb;">
   <div style="max-width:600px;margin:40px auto;background:#111;border:1px solid #2d2d2d;border-radius:12px;overflow:hidden;">
     <div style="background:#0f172a;padding:32px;border-bottom:1px solid #2d2d2d;">
-      <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#6366f1;">Quantum Bio Peptides</p>
+      <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#6366f1;">${storeName}</p>
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#fff;">Payment Confirmed</h1>
     </div>
     <div style="padding:32px;">
       <p style="margin:0 0 16px;">Hi ${data.customerName},</p>
-      <p style="margin:0 0 24px;color:#9ca3af;">Your payment was confirmed. Order <strong style="color:#fff;">${data.orderNumber}</strong> is paid.</p>
+      <p style="margin:0 0 24px;color:#9ca3af;">Your payment was confirmed. This email is your receipt for order <strong style="color:#fff;">${data.orderNumber}</strong>. Tracking will be sent when the order ships.</p>
       ${itemsTableHtml(data.items)}
       ${totalsHtml(data)}
       <p style="margin:24px 0 0;color:#9ca3af;font-size:13px;">Ship to:<br/>${formatAddress(data).replace(/\n/g, '<br/>')}</p>
+      <p style="margin:24px 0 0;font-size:12px;color:#6b7280;">Questions? Contact ${supportEmail}</p>
     </div>
   </div>
 </body>
@@ -384,6 +403,7 @@ export async function sendPaidOrderEmails(
     smtpPass: string
     orderFromEmail: string
     ownerOrderEmail: string
+    brand?: EmailBrand
   }
 ): Promise<{ customerSent: boolean; ownerSent: boolean; errors: string[] }> {
   const errors: string[] = []
@@ -411,7 +431,7 @@ export async function sendPaidOrderEmails(
       from: config.orderFromEmail,
       to: data.email,
       subject: `Payment confirmed — ${data.orderNumber}`,
-      html: buildPaidCustomerHtml(data),
+      html: buildPaidCustomerHtml(data, config.brand),
     })
     customerSent = true
   } catch (err: any) {
@@ -444,7 +464,8 @@ function buildTrackingEmailHtml(data: {
   service: string
   trackingNumber: string
   trackingUrl: string
-}): string {
+}, brand?: EmailBrand): string {
+  const { storeName, supportEmail } = resolveBrand(brand)
   const carrierLine =
     data.carrier || data.service
       ? `<p style="margin:0 0 8px;color:#9ca3af;">Carrier: <strong style="color:#fff;">${data.carrier || '—'}</strong>${
@@ -455,8 +476,9 @@ function buildTrackingEmailHtml(data: {
   return `
   <div style="font-family:system-ui,-apple-system,sans-serif;background:#0b1220;padding:32px;color:#e5e7eb;">
     <div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:28px;">
+      <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#67e8f9;">${storeName}</p>
       <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Your order has tracking</h1>
-      <p style="margin:0 0 16px;color:#9ca3af;">Your order is being prepared for shipment.</p>
+      <p style="margin:0 0 16px;color:#9ca3af;">Your order is being prepared for shipment. Tracking will update as the carrier scans the package.</p>
       <p style="margin:0 0 8px;color:#9ca3af;">Order number: <strong style="color:#fff;font-family:monospace;">${data.orderNumber}</strong></p>
       ${carrierLine}
       <p style="margin:0 0 8px;color:#9ca3af;">Tracking number: <strong style="color:#fff;font-family:monospace;">${data.trackingNumber}</strong></p>
@@ -465,6 +487,7 @@ function buildTrackingEmailHtml(data: {
           Track your package
         </a>
       </p>
+      <p style="margin:24px 0 0;font-size:12px;color:#6b7280;">Questions? ${supportEmail}</p>
     </div>
   </div>`
 }
@@ -485,6 +508,7 @@ export async function sendTrackingEmail(
     smtpUser: string
     smtpPass: string
     orderFromEmail: string
+    brand?: EmailBrand
   }
 ): Promise<{ sent: boolean; error?: string }> {
   if (!config.smtpHost || !config.smtpUser || !config.smtpPass || !config.orderFromEmail) {
@@ -505,8 +529,8 @@ export async function sendTrackingEmail(
     await transporter.sendMail({
       from: config.orderFromEmail,
       to: data.email,
-      subject: 'Your Quantum Bio Peptides order has tracking',
-      html: buildTrackingEmailHtml(data),
+      subject: `Your ${resolveBrand(config.brand).storeName} order has tracking`,
+      html: buildTrackingEmailHtml(data, config.brand),
     })
     return { sent: true }
   } catch (err: any) {

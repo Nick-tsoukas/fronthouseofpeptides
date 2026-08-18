@@ -1,6 +1,6 @@
 import { requireAdminAuth } from '~/server/utils/adminAuth'
 import {
-  getShippoConfig,
+  resolveShippoConfig,
   purchaseShippoLabelFromRate,
   getShippoTransaction,
   sanitizeShippoErrorText,
@@ -192,7 +192,7 @@ export default defineEventHandler(async (event) => {
 
   // If a transaction exists, refresh only — never buy a second label
   if (attrs.shippoTransactionId) {
-    const shippoConfig = getShippoConfig(event)
+    const shippoConfig = await resolveShippoConfig(event)
     if (!shippoConfig.apiToken) {
       logBuyLabelDiagnostics({ ...baseLog, step: 'shippo_error', ok: false, reason: 'missing_token' })
       return safeFail(event, 500, 'shippo_error', 'Shippo is not configured.', null, testMode)
@@ -399,7 +399,7 @@ export default defineEventHandler(async (event) => {
   }
   // label_purchasing with a transaction id is handled above via refresh — never reach here with an id.
 
-  const shippoConfig = getShippoConfig(event)
+  const shippoConfig = await resolveShippoConfig(event)
   if (!shippoConfig.apiToken) {
     return safeFail(event, 500, 'shippo_error', 'Shippo is not configured.', null, testMode)
   }
