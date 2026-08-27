@@ -404,6 +404,8 @@ export async function sendPaidOrderEmails(
     orderFromEmail: string
     ownerOrderEmail: string
     brand?: EmailBrand
+    /** Manual payment verification uses its own receipt subject line. */
+    customerSubject?: string
   }
 ): Promise<{ customerSent: boolean; ownerSent: boolean; errors: string[] }> {
   const errors: string[] = []
@@ -430,7 +432,7 @@ export async function sendPaidOrderEmails(
     await transporter.sendMail({
       from: config.orderFromEmail,
       to: data.email,
-      subject: `Payment confirmed — ${data.orderNumber}`,
+      subject: config.customerSubject || `Payment confirmed — ${data.orderNumber}`,
       html: buildPaidCustomerHtml(data, config.brand),
     })
     customerSent = true

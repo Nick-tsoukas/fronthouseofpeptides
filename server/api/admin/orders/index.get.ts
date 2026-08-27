@@ -33,6 +33,10 @@ function normalizeOrder(entry: any) {
     createdAt: a.createdAt || null,
     paidAt: a.paidAt || null,
     inventoryCommitted: Boolean(a.inventoryCommitted),
+    paymentProvider: a.paymentProvider || null,
+    manualPaymentMethod: a.manualPaymentMethod || null,
+    customerPaymentClaimedAt: a.customerPaymentClaimedAt || null,
+    manualPaymentRejectedAt: a.manualPaymentRejectedAt || null,
     shippingCarrier: a.shippingCarrier || null,
     shippingService: a.shippingService || null,
   }
@@ -79,6 +83,13 @@ export default defineEventHandler(async (event) => {
   } else if (filter === 'cancelled' || filter === 'canceled') {
     params.set('filters[$or][0][paymentStatus][$eq]', 'cancelled')
     params.set('filters[$or][1][status][$eq]', 'cancelled')
+  } else if (filter === 'needs_verification') {
+    params.set('filters[$or][0][paymentStatus][$eq]', 'payment_claimed_by_customer')
+    params.set('filters[$or][1][paymentStatus][$eq]', 'manual_review')
+  } else if (filter === 'awaiting_manual_payment') {
+    params.set('filters[paymentStatus][$eq]', 'awaiting_manual_payment')
+  } else if (filter === 'payment_rejected') {
+    params.set('filters[paymentStatus][$eq]', 'manual_payment_rejected')
   } else if (filter === 'shipped') {
     params.set('filters[$or][0][shippingStatus][$eq]', 'shipped')
     params.set('filters[$or][1][shippingStatus][$eq]', 'delivered')

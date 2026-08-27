@@ -349,17 +349,29 @@
             </template>
           </div>
 
+          <!-- Payment not configured (manual mode with missing settings) -->
+          <div
+            v-if="pendingOrderId && manualPaymentMode && !manualPaymentConfigured"
+            class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4"
+          >
+            <p class="text-amber-300 text-sm font-semibold">Payment instructions are not configured</p>
+            <p class="text-amber-200/80 text-xs mt-1 leading-relaxed">
+              We can't take payment for this order right now. Your order details are saved — please contact
+              {{ storeSettings?.supportEmail || 'support' }} and we'll finish it for you.
+            </p>
+          </div>
+
           <!-- Continue to Payment -->
           <button
             v-if="pendingOrderId"
             @click="continueToPayment"
-            :disabled="!canContinueToPayment || isBusy"
+            :disabled="!canContinueToPayment || isBusy || (manualPaymentMode && !manualPaymentConfigured)"
             class="w-full min-h-[48px] py-4 bg-primary-500 hover:bg-primary-600 disabled:bg-dark-700 disabled:text-dark-500 text-white font-semibold rounded-xl transition-all duration-200 text-lg flex items-center justify-center gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
-            Continue to Payment
+            {{ manualPaymentMode ? `Continue to ${manualMethodLabel} Payment` : 'Continue to Payment' }}
           </button>
 
           <p v-if="pendingOrderId && !canContinueToPayment" class="text-dark-500 text-xs text-center">
@@ -433,8 +445,14 @@
 import { reactive, ref, computed, watch } from 'vue'
 import { useCartStore } from '~/stores/cart'
 import { CURRENCY } from '~/constants'
+import { isManualPaymentMode } from '~/utils/storeSettings'
 
 const { data: storeSettings } = await usePublicStoreSettings()
+const manualPaymentMode = computed(() => isManualPaymentMode(storeSettings.value?.paymentMode))
+const manualPaymentConfigured = computed(() => Boolean(storeSettings.value?.manualPaymentConfigured))
+const manualMethodLabel = computed(() =>
+  storeSettings.value?.manualPaymentMethod === 'zelle' ? 'Zelle' : 'Cash App'
+)
 const ruoShort = computed(
   () =>
     storeSettings.value?.researchUseOnlyShortDisclaimer ||
@@ -501,7 +519,14 @@ const form = reactive({
   verificationAcknowledged: false,
 })
 
-const isBusy = computed(() => isPreparing.value || isLoadingRates.value || isSelectingRate.value)
+const isStartingManualPayment = ref(false)
+const isBusy = computed(
+  () =>
+    isPreparing.value ||
+    isLoadingRates.value ||
+    isSelectingRate.value ||
+    isStartingManualPayment.value
+)
 
 const allConfirmationsAccepted = computed(() => {
   return (
@@ -795,12 +820,36 @@ async function selectShippingRate() {
   }
 }
 
-function continueToPayment() {
+async function continueToPayment() {
   if (!canContinueToPayment.value || !pendingOrderId.value) return
 
   // Keep cart until payment succeeds so back-navigation from payment still works.
   // Prefer cookie-backed session; only pass orderId (no plaintext token in URL).
-  router.push(`/checkout/payment?orderId=${pendingOrderId.value}`)
+  if (!manualPaymentMode.value) {
+    router.push(`/checkout/payment?orderId=${pendingOrderId.value}`)
+    return
+  }
+
+  if (!manualPaymentConfigured.value) return
+
+  isStartingManualPayment.value = true
+  error.value = null
+  try {
+    await $fetch('/api/checkout/manual-payment/init', {
+      method: 'POST',
+      credentials: 'include',
+      body: {
+        orderId: pendingOrderId.value,
+        checkoutSessionToken: checkoutSessionToken.value || undefined,
+      },
+    })
+    router.push(`/checkout/manual-payment?orderId=${pendingOrderId.value}`)
+  } catch (err: any) {
+    console.error('Manual payment init error:', err)
+    error.value = err.data?.message || err.message || 'Could not start payment. Please try again.'
+  } finally {
+    isStartingManualPayment.value = false
+  }
 }
 
 useHead({

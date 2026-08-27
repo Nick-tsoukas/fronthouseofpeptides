@@ -9,13 +9,17 @@ function isProduction(event: H3Event): boolean {
   return (config.nodeEnv || process.env.NODE_ENV) === 'production'
 }
 
-export function setCheckoutSessionCookie(event: H3Event, token: string): void {
+export function setCheckoutSessionCookie(
+  event: H3Event,
+  token: string,
+  maxAgeSeconds: number = COOKIE_MAX_AGE_SECONDS
+): void {
   setCookie(event, COOKIE_NAME, token, {
     httpOnly: true,
     secure: isProduction(event),
     sameSite: 'strict',
     path: '/api',
-    maxAge: COOKIE_MAX_AGE_SECONDS,
+    maxAge: maxAgeSeconds,
   })
 }
 

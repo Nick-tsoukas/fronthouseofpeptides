@@ -1,4 +1,6 @@
 import { requireAdminAuth } from '~/server/utils/adminAuth'
+import { getManualPaymentSetup, isManualPaymentOrder } from '~/server/utils/manual-payment'
+import { getManualPaymentMethodConfig, type ManualPaymentMethod } from '~/utils/storeSettings'
 
 function centsOrFallback(cents: unknown, dollars: unknown) {
   const c = Number(cents)
@@ -40,6 +42,35 @@ export default defineEventHandler(async (event) => {
 
   const a = entry.attributes || {}
 
+  const manualOrder = isManualPaymentOrder(a)
+  let manualPayment: Record<string, any> | null = null
+  if (manualOrder) {
+    const setup = await getManualPaymentSetup(event)
+    const method = (a.manualPaymentMethod as ManualPaymentMethod) || setup.method || 'cashapp'
+    const methodConfig = getManualPaymentMethodConfig(setup.settings, method)
+    manualPayment = {
+      method,
+      label: methodConfig.label,
+      recipientHandle: methodConfig.handle,
+      recipientDisplayName: methodConfig.displayName,
+      paymentUrl: methodConfig.paymentUrl,
+      supportEmail: methodConfig.supportEmail,
+      configured: methodConfig.configured,
+      missingFields: methodConfig.missingFields,
+      reference: a.manualPaymentReference || a.orderNumber || null,
+      instructionsSentAt: a.manualPaymentInstructionsSentAt || null,
+      expiresAt: a.manualPaymentExpiresAt || null,
+      claimedAt: a.customerPaymentClaimedAt || null,
+      claimedSenderName: a.customerPaymentSenderName || null,
+      claimedSenderHandle: a.customerPaymentSenderHandle || null,
+      claimedNote: a.customerPaymentNote || null,
+      verifiedAt: a.manualPaymentVerifiedAt || null,
+      verifiedBy: a.manualPaymentVerifiedBy || null,
+      rejectedAt: a.manualPaymentRejectedAt || null,
+      rejectionReason: a.manualPaymentRejectionReason || null,
+    }
+  }
+
   return {
     ok: true,
     id: entry.id,
@@ -53,6 +84,9 @@ export default defineEventHandler(async (event) => {
     shippingStatus: a.shippingStatus || null,
     paymentProvider: a.paymentProvider || null,
     paymentMethod: a.paymentMethod || null,
+    manualPaymentMethod: a.manualPaymentMethod || null,
+    isManualPayment: manualOrder,
+    manualPayment,
     moovTransferId: a.moovTransferId || null,
     inventoryCommitted: Boolean(a.inventoryCommitted),
     inventoryAdjusted: Boolean(a.inventoryAdjusted),

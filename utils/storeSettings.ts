@@ -9,6 +9,9 @@ import {
   STARTER_TERMS_OF_SERVICE,
 } from '~/utils/storePolicyDefaults'
 
+export type PaymentMode = 'moov' | 'cashapp_manual' | 'manual_multi' | 'disabled'
+export type ManualPaymentMethod = 'cashapp' | 'zelle'
+
 export interface StoreSocialLinks {
   instagram?: string
   twitter?: string
@@ -56,6 +59,21 @@ export interface StoreSettings {
   socialLinks: StoreSocialLinks
   announcementBanner: string
   announcementBannerEnabled: boolean
+  paymentMode: PaymentMode
+  cashAppEnabled: boolean
+  cashAppCashtag: string
+  cashAppDisplayName: string
+  cashAppPaymentUrl: string
+  cashAppQrImageUrl: string
+  cashAppInstructions: string
+  manualPaymentExpirationHours: string
+  manualPaymentSupportEmail: string
+  zelleEnabled: boolean
+  zelleDisplayName: string
+  zelleEmail: string
+  zellePhone: string
+  zelleInstructions: string
+  zelleQrImageUrl: string
   updatedAt: string | null
 }
 
@@ -85,8 +103,12 @@ export type PublicStoreSettings = Pick<
   | 'socialLinks'
   | 'announcementBanner'
   | 'announcementBannerEnabled'
+  | 'paymentMode'
   | 'updatedAt'
->
+> & {
+  manualPaymentMethod: ManualPaymentMethod | null
+  manualPaymentConfigured: boolean
+}
 
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   storeName: 'Quantum Bio Peptides',
@@ -129,6 +151,21 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   socialLinks: {},
   announcementBanner: '',
   announcementBannerEnabled: false,
+  paymentMode: 'moov',
+  cashAppEnabled: false,
+  cashAppCashtag: '',
+  cashAppDisplayName: '',
+  cashAppPaymentUrl: '',
+  cashAppQrImageUrl: '',
+  cashAppInstructions: '',
+  manualPaymentExpirationHours: '24',
+  manualPaymentSupportEmail: '',
+  zelleEnabled: false,
+  zelleDisplayName: '',
+  zelleEmail: '',
+  zellePhone: '',
+  zelleInstructions: '',
+  zelleQrImageUrl: '',
   updatedAt: null,
 }
 
@@ -183,8 +220,110 @@ export function toPublicStoreSettings(settings: StoreSettings): PublicStoreSetti
     socialLinks: withPolicies.socialLinks || {},
     announcementBanner: withPolicies.announcementBanner,
     announcementBannerEnabled: withPolicies.announcementBannerEnabled,
+    paymentMode: settings.paymentMode || 'moov',
+    manualPaymentMethod: resolveManualPaymentMethod(settings),
+    manualPaymentConfigured: isManualPaymentConfigured(settings),
     updatedAt: withPolicies.updatedAt,
   }
+}
+
+/** Adds the leading $ Cash App expects, without doubling it. */
+export function normalizeCashtag(value: string | null | undefined): string {
+  const raw = String(value || '').trim().replace(/^\$+/, '')
+  return raw ? `$${raw}` : ''
+}
+
+export function isManualPaymentMode(mode: PaymentMode | string | null | undefined): boolean {
+  return mode === 'cashapp_manual' || mode === 'manual_multi'
+}
+
+/** The manual method a new order should use for the configured payment mode. */
+export function resolveManualPaymentMethod(
+  settings: Pick<StoreSettings, 'paymentMode' | 'cashAppEnabled' | 'zelleEnabled'>
+): ManualPaymentMethod | null {
+  if (settings.paymentMode === 'cashapp_manual') return 'cashapp'
+  if (settings.paymentMode === 'manual_multi') {
+    if (settings.cashAppEnabled) return 'cashapp'
+    if (settings.zelleEnabled) return 'zelle'
+  }
+  return null
+}
+
+export interface ManualPaymentMethodConfig {
+  method: ManualPaymentMethod
+  label: string
+  enabled: boolean
+  displayName: string
+  /** $Cashtag for Cash App, email/phone for Zelle. */
+  handle: string
+  secondaryHandle: string
+  paymentUrl: string
+  qrImageUrl: string
+  instructions: string
+  supportEmail: string
+  expirationHours: number
+  missingFields: string[]
+  configured: boolean
+}
+
+export function getManualPaymentMethodConfig(
+  settings: StoreSettings,
+  method: ManualPaymentMethod
+): ManualPaymentMethodConfig {
+  const supportEmail = (settings.manualPaymentSupportEmail || settings.supportEmail || '').trim()
+  const expirationHours = Number(settings.manualPaymentExpirationHours) || 24
+
+  if (method === 'zelle') {
+    const handle = (settings.zelleEmail || '').trim()
+    const secondaryHandle = (settings.zellePhone || '').trim()
+    const missingFields: string[] = []
+    if (!settings.zelleEnabled) missingFields.push('zelleEnabled')
+    if (!handle && !secondaryHandle) missingFields.push('zelleEmail')
+    if (!settings.zelleDisplayName?.trim()) missingFields.push('zelleDisplayName')
+    return {
+      method,
+      label: 'Zelle',
+      enabled: Boolean(settings.zelleEnabled),
+      displayName: (settings.zelleDisplayName || '').trim(),
+      handle,
+      secondaryHandle,
+      paymentUrl: '',
+      qrImageUrl: (settings.zelleQrImageUrl || '').trim(),
+      instructions: (settings.zelleInstructions || '').trim(),
+      supportEmail,
+      expirationHours,
+      missingFields,
+      configured: missingFields.length === 0,
+    }
+  }
+
+  const cashtag = normalizeCashtag(settings.cashAppCashtag)
+  const missingFields: string[] = []
+  if (!settings.cashAppEnabled) missingFields.push('cashAppEnabled')
+  if (!cashtag) missingFields.push('cashAppCashtag')
+  return {
+    method: 'cashapp',
+    label: 'Cash App',
+    enabled: Boolean(settings.cashAppEnabled),
+    displayName: (settings.cashAppDisplayName || '').trim(),
+    handle: cashtag,
+    secondaryHandle: '',
+    paymentUrl:
+      (settings.cashAppPaymentUrl || '').trim() ||
+      (cashtag ? `https://cash.app/${cashtag}` : ''),
+    qrImageUrl: (settings.cashAppQrImageUrl || '').trim(),
+    instructions: (settings.cashAppInstructions || '').trim(),
+    supportEmail,
+    expirationHours,
+    missingFields,
+    configured: missingFields.length === 0,
+  }
+}
+
+export function isManualPaymentConfigured(settings: StoreSettings): boolean {
+  const method = resolveManualPaymentMethod(settings)
+  if (!method) return false
+  return getManualPaymentMethodConfig(settings, method).configured
 }
 
 export function isShipFromComplete(settings: Pick<

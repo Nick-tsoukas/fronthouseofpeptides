@@ -150,6 +150,98 @@
       </section>
 
       <section class="rounded-xl border border-dark-700 bg-dark-900 overflow-hidden">
+        <button type="button" class="section-toggle" @click="toggle('payments')">
+          <span>Payments</span>
+          <span class="text-dark-500 text-xs">{{ open.payments ? 'Hide' : 'Edit' }}</span>
+        </button>
+        <div v-if="open.payments" class="section-body">
+          <div
+            v-if="manualModeSelected && !manualConfigured"
+            class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3"
+          >
+            <p class="text-amber-300 text-sm font-semibold">Manual payment is not ready</p>
+            <p class="text-amber-200/80 text-xs mt-1">
+              Checkout will show “payment instructions not configured” until you fill in:
+              <span class="font-mono">{{ manualMissingFields.join(', ') }}</span>.
+            </p>
+          </div>
+
+          <label class="field">
+            <span>Payment mode</span>
+            <select v-model="form.paymentMode" class="input">
+              <option value="moov">Card (Moov)</option>
+              <option value="cashapp_manual">Cash App — manual verification</option>
+              <option value="manual_multi">Manual (Cash App / Zelle)</option>
+              <option value="disabled">Payments disabled</option>
+            </select>
+          </label>
+          <p class="text-dark-400 text-xs leading-relaxed">
+            Manual payments are never auto-verified. You confirm each payment in the payment app, then tap
+            “Mark Payment Received” on the order.
+          </p>
+
+          <label class="flex items-center gap-3 min-h-[48px]">
+            <input v-model="form.cashAppEnabled" type="checkbox" class="h-5 w-5 rounded border-dark-500 bg-dark-800 text-cyan-500" />
+            <span class="text-sm text-dark-200">Cash App enabled</span>
+          </label>
+          <label class="field">
+            <span>Cash App $Cashtag</span>
+            <input v-model="form.cashAppCashtag" type="text" class="input" placeholder="$quantumbio" />
+          </label>
+          <label class="field">
+            <span>Cash App display name</span>
+            <input v-model="form.cashAppDisplayName" type="text" class="input" placeholder="Quantum Bio Peptides" />
+          </label>
+          <label class="field">
+            <span>Cash App payment URL (optional)</span>
+            <input v-model="form.cashAppPaymentUrl" type="url" class="input" inputmode="url" placeholder="https://cash.app/$quantumbio" />
+          </label>
+          <label class="field">
+            <span>Cash App QR image URL (optional)</span>
+            <input v-model="form.cashAppQrImageUrl" type="url" class="input" inputmode="url" />
+          </label>
+          <label class="field">
+            <span>Cash App instructions (optional)</span>
+            <textarea v-model="form.cashAppInstructions" rows="3" class="input resize-none" placeholder="Extra guidance shown on the payment page and email." />
+          </label>
+
+          <label class="field">
+            <span>Payment window (hours)</span>
+            <input v-model="form.manualPaymentExpirationHours" type="number" min="1" class="input" inputmode="numeric" />
+          </label>
+          <label class="field">
+            <span>Manual payment support email</span>
+            <input v-model="form.manualPaymentSupportEmail" type="email" class="input" inputmode="email" placeholder="Defaults to support email" />
+          </label>
+
+          <label class="flex items-center gap-3 min-h-[48px]">
+            <input v-model="form.zelleEnabled" type="checkbox" class="h-5 w-5 rounded border-dark-500 bg-dark-800 text-cyan-500" />
+            <span class="text-sm text-dark-200">Zelle enabled (used only in Manual multi mode)</span>
+          </label>
+          <label class="field">
+            <span>Zelle display name</span>
+            <input v-model="form.zelleDisplayName" type="text" class="input" />
+          </label>
+          <label class="field">
+            <span>Zelle email</span>
+            <input v-model="form.zelleEmail" type="email" class="input" inputmode="email" />
+          </label>
+          <label class="field">
+            <span>Zelle phone</span>
+            <input v-model="form.zellePhone" type="tel" class="input" inputmode="tel" />
+          </label>
+          <label class="field">
+            <span>Zelle instructions (optional)</span>
+            <textarea v-model="form.zelleInstructions" rows="3" class="input resize-none" />
+          </label>
+          <label class="field">
+            <span>Zelle QR image URL (optional)</span>
+            <input v-model="form.zelleQrImageUrl" type="url" class="input" inputmode="url" />
+          </label>
+        </div>
+      </section>
+
+      <section class="rounded-xl border border-dark-700 bg-dark-900 overflow-hidden">
         <button type="button" class="section-toggle" @click="toggle('parcel')">
           <span>Shipping Defaults</span>
           <span class="text-dark-500 text-xs">{{ open.parcel ? 'Hide' : 'Edit' }}</span>
@@ -383,7 +475,14 @@
 
 <script setup lang="ts">
 import { useAdmin } from '~/composables/useAdmin'
-import { DEFAULT_STORE_SETTINGS, type StoreSettings, type StoreSocialLinks } from '~/utils/storeSettings'
+import {
+  DEFAULT_STORE_SETTINGS,
+  getManualPaymentMethodConfig,
+  isManualPaymentMode,
+  resolveManualPaymentMethod,
+  type StoreSettings,
+  type StoreSocialLinks,
+} from '~/utils/storeSettings'
 
 definePageMeta({
   layout: 'admin',
@@ -411,6 +510,7 @@ const open = reactive({
   shipFrom: false,
   parcel: false,
   carriers: false,
+  payments: false,
   legal: false,
   footer: false,
   status: true,
@@ -419,6 +519,14 @@ const open = reactive({
 function toggle(key: keyof typeof open) {
   open[key] = !open[key]
 }
+
+const manualModeSelected = computed(() => isManualPaymentMode(form.paymentMode))
+const manualMethodConfig = computed(() => {
+  const method = resolveManualPaymentMethod(form) || 'cashapp'
+  return getManualPaymentMethodConfig(form, method)
+})
+const manualConfigured = computed(() => manualMethodConfig.value.configured)
+const manualMissingFields = computed(() => manualMethodConfig.value.missingFields)
 
 function applySettings(next: StoreSettings) {
   Object.assign(form, next)
