@@ -2,6 +2,7 @@ import { type H3Event } from 'h3'
 import { generateCheckoutSessionToken, hashToken } from '~/server/utils/moov'
 import { setCheckoutSessionCookie } from '~/server/utils/checkout-session'
 import { checkoutTrace, strapiHostname } from '~/server/utils/checkout-trace'
+import { getManualPaymentSetup } from '~/server/utils/manual-payment'
 
 const CURRENCY_CODE = 'USD'
 const SHIPPING_CENTS = 0
@@ -259,6 +260,16 @@ export default defineEventHandler(async (event: H3Event) => {
   const checkoutSessionTokenHash = hashToken(checkoutSessionToken)
   const now = new Date().toISOString()
 
+  // Manual modes tag the order up front; the instructions step flips the
+  // status once a shipping rate is selected.
+  let manualMethod: string | null = null
+  try {
+    const setup = await getManualPaymentSetup(event)
+    if (setup.manualEnabled && setup.method) manualMethod = setup.method
+  } catch {
+    manualMethod = null
+  }
+
   // ── Create pending Order in Strapi ──────────────────────────────────────
   let orderId: number
   let createdOrderNumber: string
@@ -292,7 +303,8 @@ export default defineEventHandler(async (event: H3Event) => {
             shippingCents: SHIPPING_CENTS,
             taxCents: TAX_CENTS,
             totalCents,
-            paymentProvider: 'moov',
+            paymentProvider: manualMethod || 'moov',
+            ...(manualMethod ? { manualPaymentMethod: manualMethod } : {}),
             paymentStatus: 'pending',
             idempotencyKey,
             inventoryCommitted: false,

@@ -206,6 +206,9 @@ const clearSuccess = ref('')
 
 const filters = [
   { value: 'all', label: 'All' },
+  { value: 'needs_verification', label: 'Needs Payment Verification' },
+  { value: 'awaiting_manual_payment', label: 'Awaiting Cash App' },
+  { value: 'payment_rejected', label: 'Payment Rejected' },
   { value: 'new_paid', label: 'New / Paid' },
   { value: 'ready_to_ship', label: 'Ready to Ship' },
   { value: 'label_purchased', label: 'Label Purchased' },

@@ -1,9 +1,18 @@
 import type { H3Event } from 'h3'
 import {
   DEFAULT_STORE_SETTINGS,
+  normalizeCashtag,
   normalizeSocialLinks,
+  type PaymentMode,
   type StoreSettings,
 } from '~/utils/storeSettings'
+
+const PAYMENT_MODES: PaymentMode[] = ['moov', 'cashapp_manual', 'manual_multi', 'disabled']
+
+function paymentMode(value: unknown): PaymentMode {
+  const mode = String(value || '').trim() as PaymentMode
+  return PAYMENT_MODES.includes(mode) ? mode : 'moov'
+}
 
 let cache: { at: number; data: StoreSettings; persisted: boolean } | null = null
 const CACHE_MS = 15_000
@@ -70,6 +79,24 @@ function mapStrapiAttributes(attrs: Record<string, any> | null | undefined, upda
     socialLinks: normalizeSocialLinks(a.socialLinks),
     announcementBanner: str(a.announcementBanner),
     announcementBannerEnabled: Boolean(a.announcementBannerEnabled),
+    paymentMode: paymentMode(a.paymentMode),
+    cashAppEnabled: Boolean(a.cashAppEnabled),
+    cashAppCashtag: normalizeCashtag(a.cashAppCashtag),
+    cashAppDisplayName: str(a.cashAppDisplayName),
+    cashAppPaymentUrl: str(a.cashAppPaymentUrl),
+    cashAppQrImageUrl: str(a.cashAppQrImageUrl),
+    cashAppInstructions: str(a.cashAppInstructions),
+    manualPaymentExpirationHours: numStr(
+      a.manualPaymentExpirationHours,
+      DEFAULT_STORE_SETTINGS.manualPaymentExpirationHours
+    ),
+    manualPaymentSupportEmail: str(a.manualPaymentSupportEmail),
+    zelleEnabled: Boolean(a.zelleEnabled),
+    zelleDisplayName: str(a.zelleDisplayName),
+    zelleEmail: str(a.zelleEmail),
+    zellePhone: str(a.zellePhone),
+    zelleInstructions: str(a.zelleInstructions),
+    zelleQrImageUrl: str(a.zelleQrImageUrl),
     updatedAt: updatedAt || str(a.updatedAt) || null,
   }
 }
@@ -173,6 +200,24 @@ export function settingsToStrapiData(body: Partial<StoreSettings>): Record<strin
     socialLinks: social,
     announcementBanner: str(body.announcementBanner),
     announcementBannerEnabled: Boolean(body.announcementBannerEnabled),
+    paymentMode: paymentMode(body.paymentMode),
+    cashAppEnabled: Boolean(body.cashAppEnabled),
+    cashAppCashtag: normalizeCashtag(body.cashAppCashtag),
+    cashAppDisplayName: str(body.cashAppDisplayName),
+    cashAppPaymentUrl: str(body.cashAppPaymentUrl),
+    cashAppQrImageUrl: str(body.cashAppQrImageUrl),
+    cashAppInstructions: typeof body.cashAppInstructions === 'string' ? body.cashAppInstructions : '',
+    manualPaymentExpirationHours:
+      body.manualPaymentExpirationHours === '' || body.manualPaymentExpirationHours == null
+        ? 24
+        : Math.max(1, Number(body.manualPaymentExpirationHours) || 24),
+    manualPaymentSupportEmail: str(body.manualPaymentSupportEmail) || null,
+    zelleEnabled: Boolean(body.zelleEnabled),
+    zelleDisplayName: str(body.zelleDisplayName),
+    zelleEmail: str(body.zelleEmail) || null,
+    zellePhone: str(body.zellePhone),
+    zelleInstructions: typeof body.zelleInstructions === 'string' ? body.zelleInstructions : '',
+    zelleQrImageUrl: str(body.zelleQrImageUrl),
   }
 }
 

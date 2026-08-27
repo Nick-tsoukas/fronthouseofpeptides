@@ -55,6 +55,150 @@
         <p class="text-sm mt-4" :class="fulfillmentHintClass">{{ fulfillmentHint }}</p>
       </div>
 
+      <!-- Manual payment verification -->
+      <div
+        v-if="manual"
+        class="bg-dark-900 rounded-xl border p-4 sm:p-6"
+        :class="needsVerification ? 'border-fuchsia-500/40' : 'border-dark-700'"
+      >
+        <h2 class="text-lg font-semibold text-white mb-1">{{ manual.label }} payment</h2>
+        <p class="text-dark-400 text-sm mb-4">
+          Open {{ manual.label }} and confirm the exact payment amount and order number before marking this
+          order paid.
+        </p>
+
+        <div
+          v-if="!manual.configured"
+          class="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300"
+        >
+          {{ manual.label }} settings are incomplete ({{ manual.missingFields.join(', ') }}). Fix them in
+          <NuxtLink to="/admin/settings" class="underline">Settings → Payments</NuxtLink>.
+        </div>
+
+        <dl class="space-y-2 text-sm mb-4">
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Amount due</dt>
+            <dd class="text-white font-semibold text-right">{{ formatCents(order.totalCents) }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Order number</dt>
+            <dd class="text-white font-mono text-right break-all">{{ order.orderNumber || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Customer</dt>
+            <dd class="text-white text-right break-all">{{ order.customerName }} · {{ order.email }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Pay-to</dt>
+            <dd class="text-white text-right break-all">
+              {{ manual.recipientHandle || '—' }}
+              <span v-if="manual.recipientDisplayName" class="text-dark-400">({{ manual.recipientDisplayName }})</span>
+            </dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Customer says sent by</dt>
+            <dd class="text-white text-right break-all">{{ manual.claimedSenderName || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Claimed handle</dt>
+            <dd class="text-white font-mono text-right break-all">{{ manual.claimedSenderHandle || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Claimed at</dt>
+            <dd class="text-white text-right">{{ manual.claimedAt ? formatDate(manual.claimedAt) : '—' }}</dd>
+          </div>
+          <div v-if="manual.claimedNote" class="pt-2 border-t border-dark-800">
+            <dt class="text-dark-500 mb-1">Customer note</dt>
+            <dd class="text-white whitespace-pre-line">{{ manual.claimedNote }}</dd>
+          </div>
+          <div class="flex justify-between gap-3 pt-2 border-t border-dark-800">
+            <dt class="text-dark-500">Payment status</dt>
+            <dd class="text-white text-right">{{ paymentLabel(order.paymentStatus) }}</dd>
+          </div>
+          <div v-if="manual.verifiedAt" class="flex justify-between gap-3">
+            <dt class="text-dark-500">Verified</dt>
+            <dd class="text-white text-right">{{ formatDate(manual.verifiedAt) }} · {{ manual.verifiedBy }}</dd>
+          </div>
+          <div v-if="manual.rejectedAt" class="flex justify-between gap-3">
+            <dt class="text-dark-500">Rejected</dt>
+            <dd class="text-white text-right">{{ formatDate(manual.rejectedAt) }}</dd>
+          </div>
+        </dl>
+
+        <p class="text-amber-300/90 text-xs mb-4">
+          A customer claim is not proof of payment. Verify it in {{ manual.label }} first.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button
+            v-if="canVerifyManualPayment"
+            type="button"
+            class="min-h-[48px] px-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl"
+            :disabled="!!actionLoading || !online"
+            @click="markManualPaymentReceived"
+          >
+            {{ actionLoading === 'manual' ? 'Verifying…' : 'Mark Payment Received' }}
+          </button>
+          <button
+            v-if="canVerifyManualPayment"
+            type="button"
+            class="min-h-[48px] px-4 bg-dark-800 border border-dark-600 hover:bg-dark-700 text-white text-sm font-semibold rounded-xl"
+            :disabled="!!actionLoading || !online"
+            @click="rejectOpen = !rejectOpen"
+          >
+            Reject / Request Correction
+          </button>
+          <button
+            type="button"
+            class="min-h-[48px] px-4 bg-dark-800 border border-dark-600 text-white text-sm rounded-xl"
+            @click="copyText(order.orderNumber || '', 'Order number')"
+          >
+            Copy Order Number
+          </button>
+          <button
+            type="button"
+            class="min-h-[48px] px-4 bg-dark-800 border border-dark-600 text-white text-sm rounded-xl"
+            @click="copyText(((order.totalCents || 0) / 100).toFixed(2), 'Amount')"
+          >
+            Copy Amount
+          </button>
+          <button
+            type="button"
+            class="min-h-[48px] px-4 bg-dark-800 border border-dark-600 text-white text-sm rounded-xl"
+            @click="copyText(order.email || '', 'Customer email')"
+          >
+            Copy Customer Email
+          </button>
+          <a
+            v-if="manual.paymentUrl"
+            :href="manual.paymentUrl"
+            target="_blank"
+            rel="noopener"
+            class="min-h-[48px] px-4 bg-dark-800 border border-dark-600 text-white text-sm rounded-xl flex items-center justify-center"
+          >
+            Open {{ manual.label }}
+          </a>
+        </div>
+
+        <div v-if="rejectOpen && canVerifyManualPayment" class="mt-4 space-y-2">
+          <label class="block text-dark-300 text-xs">Reason emailed to the customer</label>
+          <textarea
+            v-model="rejectReason"
+            rows="3"
+            class="w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-xl text-white text-sm"
+            placeholder="We could not find a payment matching this order number and amount."
+          ></textarea>
+          <button
+            type="button"
+            class="min-h-[48px] w-full px-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl"
+            :disabled="!!actionLoading || !online"
+            @click="rejectManualPayment"
+          >
+            {{ actionLoading === 'manual' ? 'Sending…' : 'Reject and email customer' }}
+          </button>
+        </div>
+      </div>
+
       <!-- Fulfillment actions -->
       <div class="bg-dark-900 rounded-xl border border-dark-700 p-4 sm:p-6">
         <h2 class="text-lg font-semibold text-white mb-3">Next action</h2>
@@ -555,7 +699,7 @@ const orderId = computed(() => route.params.id as string)
 const pending = ref(true)
 const error = ref('')
 const order = ref<any>(null)
-const actionLoading = ref<'' | 'buy' | 'email' | 'ship'>('')
+const actionLoading = ref<'' | 'buy' | 'email' | 'ship' | 'manual'>('')
 const actionToast = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 const labelActionError = ref<{ message: string; step?: string; detail?: string } | null>(null)
 const guideOpen = ref(false)
@@ -582,6 +726,60 @@ function showToast(type: 'success' | 'error', message: string) {
 }
 
 const headline = computed(() => (order.value ? statusHeadline(order.value) : ''))
+
+const rejectOpen = ref(false)
+const rejectReason = ref('')
+
+const manual = computed<any>(() => (order.value?.isManualPayment ? order.value.manualPayment : null))
+
+const needsVerification = computed(() =>
+  ['payment_claimed_by_customer', 'manual_review'].includes(order.value?.paymentStatus)
+)
+
+const canVerifyManualPayment = computed(
+  () =>
+    Boolean(manual.value) &&
+    ['awaiting_manual_payment', 'payment_claimed_by_customer', 'manual_review', 'manual_payment_rejected'].includes(
+      order.value?.paymentStatus
+    )
+)
+
+async function markManualPaymentReceived() {
+  if (actionLoading.value || !requireOnline()) return
+  actionLoading.value = 'manual'
+  try {
+    const res = await $fetch<any>(
+      `/api/admin/orders/${orderId.value}/mark-manual-payment-received`,
+      { method: 'POST', credentials: 'include', body: {} }
+    )
+    await refreshOrder()
+    showToast('success', res?.message || 'Payment verified.')
+  } catch (err: any) {
+    showToast('error', err?.data?.message || err?.message || 'Could not mark this order paid.')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
+async function rejectManualPayment() {
+  if (actionLoading.value || !requireOnline()) return
+  actionLoading.value = 'manual'
+  try {
+    const res = await $fetch<any>(`/api/admin/orders/${orderId.value}/reject-manual-payment`, {
+      method: 'POST',
+      credentials: 'include',
+      body: { reason: rejectReason.value },
+    })
+    await refreshOrder()
+    rejectOpen.value = false
+    rejectReason.value = ''
+    showToast(res?.customerEmailSent ? 'success' : 'error', res?.message || 'Payment rejected.')
+  } catch (err: any) {
+    showToast('error', err?.data?.message || err?.message || 'Could not reject this payment.')
+  } finally {
+    actionLoading.value = ''
+  }
+}
 
 const labelDifference = computed(() => {
   if (!order.value || order.value.labelCostCents == null) return null
@@ -685,7 +883,9 @@ function extractLabelError(errOrRes: any): { message: string; step?: string; det
 const fulfillmentHint = computed(() => {
   if (!order.value) return ''
   if (order.value.paymentStatus !== 'paid') {
-    return 'Label can be purchased after payment is confirmed.'
+    return order.value.isManualPayment
+      ? 'Shipping label can be purchased after payment is verified.'
+      : 'Label can be purchased after payment is confirmed.'
   }
   switch (order.value.shippingStatus) {
     case 'selected':

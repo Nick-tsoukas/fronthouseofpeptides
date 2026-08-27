@@ -9,6 +9,8 @@ export type FulfillmentKind =
   | 'delivered'
   | 'attention'
   | 'unpaid'
+  | 'verify'
+  | 'rejected'
   | 'neutral'
 
 export function paymentLabel(status: string | null | undefined): string {
@@ -26,6 +28,14 @@ export function paymentLabel(status: string | null | undefined): string {
       return 'Cancelled'
     case 'refunded':
       return 'Refunded'
+    case 'awaiting_manual_payment':
+      return 'Awaiting Cash App'
+    case 'payment_claimed_by_customer':
+      return 'Customer says paid'
+    case 'manual_review':
+      return 'Needs verification'
+    case 'manual_payment_rejected':
+      return 'Payment rejected'
     default:
       return status ? String(status) : '—'
   }
@@ -73,6 +83,15 @@ export function fulfillmentBadge(order: {
   if (pay === 'failed' || ship === 'label_failed') {
     return { label: 'Attention needed', kind: 'attention' }
   }
+  if (pay === 'payment_claimed_by_customer' || pay === 'manual_review') {
+    return { label: 'Needs verification', kind: 'verify' }
+  }
+  if (pay === 'manual_payment_rejected') {
+    return { label: 'Payment rejected', kind: 'rejected' }
+  }
+  if (pay === 'awaiting_manual_payment') {
+    return { label: 'Awaiting Cash App', kind: 'unpaid' }
+  }
   if (ship === 'delivered') return { label: 'Delivered', kind: 'delivered' }
   if (ship === 'shipped' || ship === 'in_transit') return { label: 'Shipped', kind: 'shipped' }
   if (ship === 'label_purchased') return { label: 'Label purchased', kind: 'label' }
@@ -105,6 +124,10 @@ export function badgeClass(kind: FulfillmentKind | string): string {
       return base + 'bg-red-500/15 text-red-300 border border-red-500/30'
     case 'unpaid':
       return base + 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30'
+    case 'verify':
+      return base + 'bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/30'
+    case 'rejected':
+      return base + 'bg-orange-500/15 text-orange-300 border border-orange-500/30'
     default:
       return base + 'bg-dark-700 text-dark-300 border border-dark-600'
   }
@@ -115,6 +138,8 @@ export function paymentBadgeClass(status: string | null | undefined): string {
   if (s === 'paid') return badgeClass('paid')
   if (s === 'processing') return badgeClass('processing')
   if (s === 'failed') return badgeClass('failed')
-  if (s === 'pending') return badgeClass('unpaid')
+  if (s === 'pending' || s === 'awaiting_manual_payment') return badgeClass('unpaid')
+  if (s === 'payment_claimed_by_customer' || s === 'manual_review') return badgeClass('verify')
+  if (s === 'manual_payment_rejected') return badgeClass('rejected')
   return badgeClass('neutral')
 }
