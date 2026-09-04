@@ -2,6 +2,8 @@ import { type H3Event } from 'h3'
 import { generateCheckoutSessionToken, hashToken } from '~/server/utils/moov'
 import { setCheckoutSessionCookie } from '~/server/utils/checkout-session'
 import { checkoutTrace, strapiHostname } from '~/server/utils/checkout-trace'
+import { fetchStoreSettings } from '~/server/utils/storeSettings'
+import { isCashAppConfigured } from '~/utils/storeSettings'
 
 const CURRENCY_CODE = 'USD'
 const SHIPPING_CENTS = 0
@@ -259,6 +261,30 @@ export default defineEventHandler(async (event: H3Event) => {
   const checkoutSessionTokenHash = hashToken(checkoutSessionToken)
   const now = new Date().toISOString()
 
+  const { settings } = await fetchStoreSettings(event)
+  const paymentMode = settings.paymentMode || 'cashapp_manual'
+
+  if (paymentMode === 'disabled') {
+    throw createError({
+      statusCode: 503,
+      message: 'Online checkout is temporarily unavailable. Please try again later or contact support.',
+    })
+  }
+
+  const useCashApp =
+    paymentMode === 'cashapp_manual' ||
+    (paymentMode === 'manual_multi' && settings.cashAppEnabled !== false)
+
+  // Incomplete Cash App config: still create the order; customer page shows a safe message.
+  const cashAppReady = !useCashApp || isCashAppConfigured(settings)
+
+  const paymentProvider = useCashApp ? 'cashapp_manual' : 'moov'
+  const paymentMethod = useCashApp ? 'cashapp' : undefined
+  const expirationHours = Math.max(1, Number(settings.manualPaymentExpirationHours) || 48)
+  const manualPaymentExpiresAt = useCashApp
+    ? new Date(Date.now() + expirationHours * 60 * 60 * 1000).toISOString()
+    : null
+
   // ── Create pending Order in Strapi ──────────────────────────────────────
   let orderId: number
   let createdOrderNumber: string
@@ -292,8 +318,10 @@ export default defineEventHandler(async (event: H3Event) => {
             shippingCents: SHIPPING_CENTS,
             taxCents: TAX_CENTS,
             totalCents,
-            paymentProvider: 'moov',
+            paymentProvider,
+            ...(paymentMethod ? { paymentMethod } : {}),
             paymentStatus: 'pending',
+            ...(manualPaymentExpiresAt ? { manualPaymentExpiresAt } : {}),
             idempotencyKey,
             inventoryCommitted: false,
             status: 'awaiting_payment',
@@ -318,7 +346,66 @@ export default defineEventHandler(async (event: H3Event) => {
     if (err?.response?.status === 400 && err?.data?.error?.message?.toLowerCase().includes('unique')) {
       throw createError({ statusCode: 409, message: 'Duplicate order request. Please try again.' })
     }
-    throw createError({ statusCode: 502, message: 'Failed to create order. Please try again.' })
+    // Fallback: if Strapi schema not yet redeployed with cashapp_manual, retry as manual
+    if (useCashApp && (err?.statusCode === 400 || err?.response?.status === 400)) {
+      try {
+        const fallback = await $fetch<{ data: { id: number; attributes: any } }>(
+          `${strapiUrl}/api/orders`,
+          {
+            method: 'POST',
+            headers: { ...authHeaders, 'Content-Type': 'application/json' },
+            body: {
+              data: {
+                orderNumber,
+                customerName: `${firstName} ${lastName}`,
+                email,
+                phone,
+                shippingFirstName: firstName,
+                shippingLastName: lastName,
+                shippingPhone: phone,
+                shippingAddress1,
+                shippingAddress2,
+                shippingCity,
+                shippingState,
+                shippingPostalCode,
+                shippingCountry,
+                amountSubtotal: subtotalCents / 100,
+                amountTotal: totalCents / 100,
+                shippingAmount: SHIPPING_CENTS / 100,
+                currency: CURRENCY_CODE,
+                subtotalCents,
+                shippingCents: SHIPPING_CENTS,
+                taxCents: TAX_CENTS,
+                totalCents,
+                paymentProvider: 'manual',
+                paymentMethod: 'external',
+                paymentStatus: 'pending',
+                idempotencyKey,
+                inventoryCommitted: false,
+                status: 'awaiting_payment',
+                shippingStatus: 'not_quoted',
+                checkoutSessionTokenHash,
+                ageConfirmed: true,
+                researchUseConfirmed: true,
+                qualifiedPurchaserConfirmed: true,
+                termsAccepted: true,
+                verificationAcknowledged: true,
+                attestationsAcceptedAt: now,
+                termsVersion: TERMS_VERSION,
+                researchAttestationVersion: RESEARCH_ATTESTATION_VERSION,
+              },
+            },
+          }
+        )
+        orderId = fallback.data.id
+        createdOrderNumber = fallback.data.attributes.orderNumber
+      } catch (fallbackErr: any) {
+        console.error('Order creation fallback failed:', fallbackErr?.message || fallbackErr)
+        throw createError({ statusCode: 502, message: 'Failed to create order. Please try again.' })
+      }
+    } else {
+      throw createError({ statusCode: 502, message: 'Failed to create order. Please try again.' })
+    }
   }
 
   checkoutTrace('prepare:order-created', {
@@ -377,7 +464,9 @@ export default defineEventHandler(async (event: H3Event) => {
     taxCents: TAX_CENTS,
     totalCents,
     paymentStatus: 'pending',
+    paymentProvider,
     shippingStatus: 'not_quoted',
     checkoutSessionToken,
+    cashAppReady,
   }
 })

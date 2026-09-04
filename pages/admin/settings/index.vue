@@ -271,6 +271,73 @@
       </section>
 
       <section class="rounded-xl border border-dark-700 bg-dark-900 overflow-hidden">
+        <button type="button" class="section-toggle" @click="toggle('payment')">
+          <span>Payment</span>
+          <span class="text-dark-500 text-xs">{{ open.payment ? 'Hide' : 'Edit' }}</span>
+        </button>
+        <div v-if="open.payment" class="section-body">
+          <p
+            v-if="paymentWarnings.length"
+            class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-200 text-sm space-y-1"
+          >
+            <span v-for="(w, i) in paymentWarnings" :key="i" class="block">{{ w }}</span>
+          </p>
+          <label class="field">
+            <span>Payment mode</span>
+            <select v-model="form.paymentMode" class="input">
+              <option value="cashapp_manual">Cash App (manual)</option>
+              <option value="moov">Moov (card)</option>
+              <option value="manual_multi">Manual multi (Cash App + future)</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </label>
+          <label class="flex items-center gap-3 min-h-[48px]">
+            <input v-model="form.cashAppEnabled" type="checkbox" class="h-5 w-5 rounded border-dark-500 bg-dark-800 text-cyan-500" />
+            <span class="text-sm text-dark-200">Cash App enabled</span>
+          </label>
+          <label class="field">
+            <span>Cash App cashtag</span>
+            <input v-model="form.cashAppCashtag" type="text" class="input" placeholder="$YourTag" />
+          </label>
+          <label class="field">
+            <span>Cash App display name</span>
+            <input v-model="form.cashAppDisplayName" type="text" class="input" placeholder="Business name on Cash App" />
+          </label>
+          <label class="field">
+            <span>Cash App payment URL</span>
+            <input v-model="form.cashAppPaymentUrl" type="url" class="input" inputmode="url" placeholder="https://cash.app/$YourTag" />
+          </label>
+          <label class="field">
+            <span>Cash App QR image URL</span>
+            <input v-model="form.cashAppQrImageUrl" type="url" class="input" inputmode="url" placeholder="https://…" />
+          </label>
+          <label class="field">
+            <span>Manual payment expiration (hours)</span>
+            <input v-model.number="form.manualPaymentExpirationHours" type="number" min="1" max="168" class="input" inputmode="numeric" />
+          </label>
+          <label class="field">
+            <span>Manual payment support email</span>
+            <input v-model="form.manualPaymentSupportEmail" type="email" class="input" inputmode="email" placeholder="orders@…" />
+          </label>
+          <div class="rounded-lg border border-dark-700 bg-dark-950/50 px-3 py-3 space-y-3">
+            <p class="text-dark-400 text-xs">Zelle fields are saved for later — not launched yet.</p>
+            <label class="flex items-center gap-3 min-h-[44px]">
+              <input v-model="form.zelleEnabled" type="checkbox" class="h-5 w-5 rounded border-dark-500 bg-dark-800 text-cyan-500" />
+              <span class="text-sm text-dark-200">Zelle enabled (not launched)</span>
+            </label>
+            <label class="field">
+              <span>Zelle handle</span>
+              <input v-model="form.zelleHandle" type="text" class="input" />
+            </label>
+            <label class="field">
+              <span>Zelle display name</span>
+              <input v-model="form.zelleDisplayName" type="text" class="input" />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="rounded-xl border border-dark-700 bg-dark-900 overflow-hidden">
         <button type="button" class="section-toggle" @click="toggle('status')">
           <span>Test / Live Status</span>
           <span class="text-dark-500 text-xs">{{ open.status ? 'Hide' : 'View' }}</span>
@@ -411,6 +478,7 @@ const open = reactive({
   shipFrom: false,
   parcel: false,
   carriers: false,
+  payment: true,
   legal: false,
   footer: false,
   status: true,
@@ -419,6 +487,19 @@ const open = reactive({
 function toggle(key: keyof typeof open) {
   open[key] = !open[key]
 }
+
+const paymentWarnings = computed(() => {
+  const warnings: string[] = []
+  if (form.paymentMode === 'cashapp_manual' || form.paymentMode === 'manual_multi') {
+    if (!String(form.cashAppCashtag || '').trim()) {
+      warnings.push('Cash App cashtag is required for Cash App checkout.')
+    }
+    if (!String(form.cashAppDisplayName || '').trim()) {
+      warnings.push('Cash App display name is required for Cash App checkout.')
+    }
+  }
+  return warnings
+})
 
 function applySettings(next: StoreSettings) {
   Object.assign(form, next)

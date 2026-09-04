@@ -1,4 +1,5 @@
 import { requireAdminAuth } from '~/server/utils/adminAuth'
+import { loadOrderStockLines } from '~/server/utils/finalizePaidOrder'
 
 function centsOrFallback(cents: unknown, dollars: unknown) {
   const c = Number(cents)
@@ -19,18 +20,17 @@ export default defineEventHandler(async (event) => {
 
   const strapiUrl = config.public.strapiUrl as string
   const strapiToken = config.strapiToken as string
+  const authHeaders: Record<string, string> = {
+    Authorization: `Bearer ${strapiToken}`,
+    'Content-Type': 'application/json',
+  }
 
   const params = new URLSearchParams()
   params.set('populate[orderItems][populate][variant]', 'true')
 
   const response = await $fetch<{ data: any }>(
     `${strapiUrl}/api/orders/${id}?${params.toString()}`,
-    {
-      headers: {
-        Authorization: `Bearer ${strapiToken}`,
-        'Content-Type': 'application/json',
-      },
-    }
+    { headers: authHeaders }
   ).catch(() => {
     throw createError({ statusCode: 404, message: 'Order not found.' })
   })
@@ -39,6 +39,12 @@ export default defineEventHandler(async (event) => {
   if (!entry) throw createError({ statusCode: 404, message: 'Order not found.' })
 
   const a = entry.attributes || {}
+  const stockLines = await loadOrderStockLines(strapiUrl, authHeaders, entry.id, a)
+  const stockByVariant = new Map(
+    stockLines
+      .filter((l) => l.variantId != null)
+      .map((l) => [l.variantId as number, l])
+  )
 
   return {
     ok: true,
@@ -58,6 +64,15 @@ export default defineEventHandler(async (event) => {
     inventoryAdjusted: Boolean(a.inventoryAdjusted),
     createdAt: a.createdAt || null,
     paidAt: a.paidAt || null,
+    paymentFinalizingAt: a.paymentFinalizingAt || null,
+    paidReceiptSentAt: a.paidReceiptSentAt || null,
+    manualPaymentClaimedAt: a.manualPaymentClaimedAt || null,
+    manualPaymentClaimedSenderName: a.manualPaymentClaimedSenderName || null,
+    manualPaymentClaimedHandle: a.manualPaymentClaimedHandle || null,
+    manualPaymentClaimedNote: a.manualPaymentClaimedNote || null,
+    manualPaymentRejectedAt: a.manualPaymentRejectedAt || null,
+    manualPaymentRejectionReason: a.manualPaymentRejectionReason || null,
+    manualPaymentExpiresAt: a.manualPaymentExpiresAt || null,
     shippingName: a.shippingName || null,
     shippingAddressLine1: a.shippingAddressLine1 || a.shippingAddress1 || null,
     shippingAddressLine2: a.shippingAddressLine2 || a.shippingAddress2 || null,
@@ -85,13 +100,28 @@ export default defineEventHandler(async (event) => {
     totalCents: centsOrFallback(a.totalCents, a.amountTotal),
     customerNotes: a.customerNotes || null,
     ownerNotes: a.ownerNotes || null,
-    items: (a.orderItems?.data || []).map((item: any) => ({
-      id: item.id,
-      productName: item.attributes?.productNameSnapshot || '',
-      variantName: item.attributes?.variantNameSnapshot || '',
-      sku: item.attributes?.skuSnapshot || '',
-      quantity: item.attributes?.quantity || 0,
-      unitPrice: Number(item.attributes?.unitPriceSnapshot) || 0,
-    })),
+    stockLines,
+    items: (a.orderItems?.data || []).map((item: any) => {
+      const ia = item.attributes || {}
+      const variantId = ia.variant?.data?.id || null
+      const stock =
+        (variantId != null ? stockByVariant.get(variantId) : null) ||
+        stockLines.find(
+          (l) =>
+            l.productName === (ia.productNameSnapshot || '') &&
+            l.variantName === (ia.variantNameSnapshot || '') &&
+            l.orderedQty === (Number(ia.quantity) || 0)
+        )
+      return {
+        id: item.id,
+        productName: ia.productNameSnapshot || '',
+        variantName: ia.variantNameSnapshot || '',
+        sku: ia.skuSnapshot || '',
+        quantity: ia.quantity || 0,
+        unitPrice: Number(ia.unitPriceSnapshot) || 0,
+        currentStock: stock?.currentStock ?? null,
+        insufficient: Boolean(stock?.insufficient),
+      }
+    }),
   }
 })

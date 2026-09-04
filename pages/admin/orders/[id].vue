@@ -42,7 +42,7 @@
         </p>
         <p class="mt-1 text-cyan-300 font-semibold">{{ headline }}</p>
         <div class="mt-3 flex flex-wrap gap-1.5">
-          <span :class="paymentBadgeClass(order.paymentStatus)">{{ paymentLabel(order.paymentStatus) }}</span>
+          <span :class="paymentBadgeClass(order.paymentStatus, order)">{{ paymentLabel(order.paymentStatus, order) }}</span>
           <span :class="badgeClass(fulfillmentBadge(order).kind)">{{ fulfillmentBadge(order).label }}</span>
         </div>
         <div class="mt-4 flex items-end justify-between gap-3">
@@ -53,6 +53,130 @@
           <p class="text-xl font-bold text-white shrink-0">{{ formatCents(order.totalCents) }}</p>
         </div>
         <p class="text-sm mt-4" :class="fulfillmentHintClass">{{ fulfillmentHint }}</p>
+      </div>
+
+      <!-- Manual Cash App verification -->
+      <div
+        v-if="showCashAppVerification"
+        class="bg-dark-900 rounded-xl border border-amber-500/30 p-4 sm:p-6"
+      >
+        <h2 class="text-lg font-semibold text-white mb-1">Manual Cash App verification</h2>
+        <p class="text-dark-400 text-sm mb-4">Confirm the Cash App payment before buying a label.</p>
+
+        <dl class="space-y-2 text-sm mb-4">
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Order number</dt>
+            <dd class="text-white font-mono text-right break-all">{{ order.orderNumber || `#${order.id}` }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Amount due</dt>
+            <dd class="text-white font-semibold">{{ formatCents(order.totalCents) }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Customer</dt>
+            <dd class="text-white text-right">
+              {{ order.customerName || '—' }}
+              <span v-if="order.email" class="block text-dark-400 text-xs break-all">{{ order.email }}</span>
+            </dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Payment status</dt>
+            <dd class="text-white text-right">{{ paymentLabel(order.paymentStatus, order) }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Claimed sender</dt>
+            <dd class="text-white text-right">{{ order.manualPaymentClaimedSenderName || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Cash App handle</dt>
+            <dd class="text-white text-right">{{ order.manualPaymentClaimedHandle || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Customer note</dt>
+            <dd class="text-white text-right break-words">{{ order.manualPaymentClaimedNote || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Claimed at</dt>
+            <dd class="text-white text-right">{{ order.manualPaymentClaimedAt ? formatDate(order.manualPaymentClaimedAt) : 'Not claimed yet' }}</dd>
+          </div>
+          <div v-if="order.manualPaymentExpiresAt" class="flex justify-between gap-3">
+            <dt class="text-dark-500">Expires</dt>
+            <dd class="text-white text-right">{{ formatDate(order.manualPaymentExpiresAt) }}</dd>
+          </div>
+          <div v-if="order.manualPaymentRejectionReason" class="flex justify-between gap-3">
+            <dt class="text-dark-500">Last rejection</dt>
+            <dd class="text-amber-300 text-right break-words">{{ order.manualPaymentRejectionReason }}</dd>
+          </div>
+        </dl>
+
+        <div v-if="hasInsufficientStock" class="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          Stock warning: one or more items have less inventory than ordered.
+        </div>
+
+        <div v-if="order.items?.length" class="mb-4 rounded-lg border border-dark-700 overflow-hidden">
+          <div
+            v-for="item in order.items"
+            :key="'stock-' + item.id"
+            class="flex items-center justify-between gap-3 px-3 py-2 text-sm border-b border-dark-700 last:border-0"
+          >
+            <div class="min-w-0">
+              <p class="text-white truncate">{{ item.productName }} · {{ item.variantName }}</p>
+              <p class="text-dark-400 text-xs">Ordered {{ item.quantity }}</p>
+            </div>
+            <p :class="item.insufficient ? 'text-amber-300 font-medium' : 'text-dark-300'">
+              Stock {{ item.currentStock == null ? '—' : item.currentStock }}
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            class="min-h-[48px] px-4 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-xl"
+            @click="copyText(order.orderNumber || String(order.id), 'Order number')"
+          >
+            Copy Order Number
+          </button>
+          <button
+            type="button"
+            class="min-h-[48px] px-4 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-xl"
+            @click="copyText(formatCents(order.totalCents).replace('$', ''), 'Amount')"
+          >
+            Copy Amount
+          </button>
+          <button
+            v-if="order.email"
+            type="button"
+            class="min-h-[48px] px-4 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-xl"
+            @click="copyText(order.email, 'Customer email')"
+          >
+            Copy Customer Email
+          </button>
+          <a
+            href="https://cash.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex min-h-[48px] items-center justify-center px-4 bg-dark-700 hover:bg-dark-600 text-white text-sm font-medium rounded-xl"
+          >
+            Open Cash App
+          </a>
+          <button
+            type="button"
+            class="min-h-[48px] px-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl"
+            :disabled="!!actionLoading || !online"
+            @click="markPaymentReceived(false)"
+          >
+            {{ actionLoading === 'payment' ? 'Marking…' : 'Mark Payment Received' }}
+          </button>
+          <button
+            type="button"
+            class="min-h-[48px] px-4 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 disabled:opacity-50 text-red-300 text-sm font-semibold rounded-xl"
+            :disabled="!!actionLoading || !online"
+            @click="askRejectPayment"
+          >
+            Reject / Request Correction
+          </button>
+        </div>
       </div>
 
       <!-- Fulfillment actions -->
@@ -95,7 +219,7 @@
             type="button"
             class="min-h-[48px] px-4 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl"
             :disabled="!!actionLoading || !online"
-            @click="buyLabel"
+            @click="askBuyLabel"
           >
             {{ buyLabelButtonLabel }}
           </button>
@@ -385,6 +509,13 @@
                 {{ item.variantName }}
                 <span v-if="item.sku"> · SKU {{ item.sku }}</span>
               </p>
+              <p
+                v-if="item.currentStock != null"
+                class="text-xs mt-1"
+                :class="item.insufficient ? 'text-amber-300' : 'text-dark-500'"
+              >
+                Stock {{ item.currentStock }}{{ item.insufficient ? ' · insufficient' : '' }}
+              </p>
             </div>
             <div class="text-right text-sm">
               <p class="text-white">${{ Number(item.unitPrice).toFixed(2) }} × {{ item.quantity }}</p>
@@ -441,8 +572,16 @@
             <dd class="text-white">{{ order.paidAt ? formatDate(order.paidAt) : '—' }}</dd>
           </div>
           <div class="flex justify-between sm:block gap-3">
+            <dt class="text-dark-500">Receipt emailed</dt>
+            <dd class="text-white">{{ order.paidReceiptSentAt ? formatDate(order.paidReceiptSentAt) : '—' }}</dd>
+          </div>
+          <div class="flex justify-between sm:block gap-3">
             <dt class="text-dark-500">Inventory committed</dt>
             <dd class="text-white">{{ order.inventoryCommitted ? 'Yes' : 'No' }}</dd>
+          </div>
+          <div v-if="order.manualPaymentClaimedAt" class="flex justify-between sm:block gap-3">
+            <dt class="text-dark-500">Claimed at</dt>
+            <dd class="text-white">{{ formatDate(order.manualPaymentClaimedAt) }}</dd>
           </div>
         </dl>
       </div>
@@ -454,12 +593,30 @@
       class="lg:hidden fixed inset-x-0 bottom-0 z-20 border-t border-dark-700 bg-dark-900/95 backdrop-blur px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
     >
       <div class="flex gap-2">
+        <template v-if="stickyPrimary === 'verify'">
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-emerald-500 text-white font-semibold disabled:opacity-50"
+            :disabled="!!actionLoading || !online"
+            @click="markPaymentReceived(false)"
+          >
+            {{ actionLoading === 'payment' ? 'Marking…' : 'Mark Received' }}
+          </button>
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 font-semibold disabled:opacity-50"
+            :disabled="!!actionLoading || !online"
+            @click="askRejectPayment"
+          >
+            Reject
+          </button>
+        </template>
         <button
-          v-if="stickyPrimary === 'buy'"
+          v-else-if="stickyPrimary === 'buy'"
           type="button"
           class="flex-1 min-h-[48px] rounded-xl bg-cyan-500 text-white font-semibold disabled:opacity-50"
           :disabled="!!actionLoading || !online"
-          @click="buyLabel"
+          @click="askBuyLabel"
         >
           {{ buyLabelButtonLabel }}
         </button>
@@ -499,6 +656,143 @@
         >
           Open Tracking
         </a>
+      </div>
+    </div>
+
+    <!-- Buy label confirm -->
+    <div
+      v-if="buyConfirm"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/65 p-0 sm:p-4"
+      @click.self="buyConfirm = false"
+    >
+      <div class="w-full sm:max-w-md bg-dark-900 border border-dark-700 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <h3 class="text-lg font-semibold text-white mb-2">Buy shipping label?</h3>
+        <dl class="text-sm space-y-2 mb-5">
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Order</dt>
+            <dd class="text-white font-mono text-right break-all">{{ order?.orderNumber || `#${orderId}` }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Customer</dt>
+            <dd class="text-white text-right">{{ order?.customerName || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Ship to</dt>
+            <dd class="text-white text-right text-xs leading-relaxed">
+              <p>{{ order?.shippingName || order?.customerName }}</p>
+              <p>{{ order?.shippingAddressLine1 }}</p>
+              <p v-if="order?.shippingAddressLine2">{{ order.shippingAddressLine2 }}</p>
+              <p>
+                {{ order?.shippingCity }}{{ order?.shippingCity && order?.shippingState ? ', ' : '' }}{{ order?.shippingState }}
+                {{ order?.shippingPostalCode }}
+              </p>
+              <p>{{ order?.shippingCountry || 'US' }}</p>
+            </dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Carrier</dt>
+            <dd class="text-white text-right">{{ order?.shippingCarrier || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Service</dt>
+            <dd class="text-white text-right">{{ order?.shippingService || '—' }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-dark-500">Shipping amount</dt>
+            <dd class="text-white text-right">{{ formatCents(order?.shippingCostCents || 0) }}</dd>
+          </div>
+        </dl>
+        <div class="flex flex-col-reverse sm:flex-row gap-3">
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-dark-800 border border-dark-600 text-white"
+            :disabled="actionLoading === 'buy'"
+            @click="buyConfirm = false"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-cyan-500 text-white font-semibold disabled:opacity-50"
+            :disabled="!!actionLoading || !online"
+            @click="confirmBuyLabel"
+          >
+            {{ actionLoading === 'buy' ? 'Buying label…' : 'Yes, buy label' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Insufficient stock confirm -->
+    <div
+      v-if="stockConfirm"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/65 p-0 sm:p-4"
+      @click.self="stockConfirm = false"
+    >
+      <div class="w-full sm:max-w-md bg-dark-900 border border-dark-700 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <h3 class="text-lg font-semibold text-white mb-2">Insufficient stock</h3>
+        <p class="text-dark-300 text-sm mb-4">
+          One or more items have less stock than ordered. Mark payment received anyway?
+        </p>
+        <ul v-if="stockConfirmLines.length" class="text-sm text-amber-200 space-y-1 mb-5">
+          <li v-for="(line, idx) in stockConfirmLines" :key="idx">
+            {{ line.productName }} {{ line.variantName }} — ordered {{ line.orderedQty }}, stock {{ line.currentStock }}
+          </li>
+        </ul>
+        <div class="flex flex-col-reverse sm:flex-row gap-3">
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-dark-800 border border-dark-600 text-white"
+            @click="stockConfirm = false"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-emerald-500 text-white font-semibold disabled:opacity-50"
+            :disabled="!!actionLoading || !online"
+            @click="markPaymentReceived(true)"
+          >
+            {{ actionLoading === 'payment' ? 'Marking…' : 'Confirm anyway' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reject payment -->
+    <div
+      v-if="rejectOpen"
+      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/65 p-0 sm:p-4"
+      @click.self="rejectOpen = false"
+    >
+      <div class="w-full sm:max-w-md bg-dark-900 border border-dark-700 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <h3 class="text-lg font-semibold text-white mb-2">Reject payment?</h3>
+        <p class="text-dark-300 text-sm mb-3">
+          The customer will be emailed correction instructions. Inventory is not changed.
+        </p>
+        <textarea
+          v-model="rejectReason"
+          rows="3"
+          class="w-full min-h-[96px] px-4 py-3 rounded-xl bg-dark-800 border border-dark-600 text-white text-sm mb-3 focus:outline-none focus:border-red-400"
+          placeholder="Reason (required)"
+        />
+        <div class="flex flex-col-reverse sm:flex-row gap-3">
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-dark-800 border border-dark-600 text-white"
+            @click="rejectOpen = false"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="flex-1 min-h-[48px] rounded-xl bg-red-500 text-white font-semibold disabled:opacity-50"
+            :disabled="!!actionLoading || !online || !rejectReason.trim()"
+            @click="rejectPayment"
+          >
+            {{ actionLoading === 'reject' ? 'Rejecting…' : 'Reject payment' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -555,11 +849,16 @@ const orderId = computed(() => route.params.id as string)
 const pending = ref(true)
 const error = ref('')
 const order = ref<any>(null)
-const actionLoading = ref<'' | 'buy' | 'email' | 'ship'>('')
+const actionLoading = ref<'' | 'buy' | 'email' | 'ship' | 'payment' | 'reject'>('')
 const actionToast = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 const labelActionError = ref<{ message: string; step?: string; detail?: string } | null>(null)
 const guideOpen = ref(false)
 const shipConfirm = ref(false)
+const buyConfirm = ref(false)
+const stockConfirm = ref(false)
+const stockConfirmLines = ref<any[]>([])
+const rejectOpen = ref(false)
+const rejectReason = ref('')
 const { online } = useAdminOnline()
 
 const formatCents = (cents: number) => `$${((Number(cents) || 0) / 100).toFixed(2)}`
@@ -583,13 +882,29 @@ function showToast(type: 'success' | 'error', message: string) {
 
 const headline = computed(() => (order.value ? statusHeadline(order.value) : ''))
 
+const isManualCashAppOrder = computed(() => {
+  if (!order.value) return false
+  const provider = String(order.value.paymentProvider || '')
+  const method = String(order.value.paymentMethod || '')
+  return provider === 'cashapp_manual' || provider === 'manual' || method === 'cashapp'
+})
+
+const showCashAppVerification = computed(() => {
+  if (!order.value || !isManualCashAppOrder.value) return false
+  return order.value.paymentStatus !== 'paid'
+})
+
+const hasInsufficientStock = computed(() =>
+  Boolean(order.value?.items?.some((item: any) => item.insufficient))
+)
+
 const labelDifference = computed(() => {
   if (!order.value || order.value.labelCostCents == null) return null
   return Number(order.value.shippingCostCents || 0) - Number(order.value.labelCostCents || 0)
 })
 
 const buyLabelButtonLabel = computed(() => {
-  if (actionLoading.value === 'buy') return 'Purchasing…'
+  if (actionLoading.value === 'buy') return 'Buying label…'
   if (order.value?.shippingStatus === 'label_failed') return 'Retry Label Purchase'
   return 'Buy Shipping Label'
 })
@@ -602,6 +917,7 @@ const emailTrackingLabel = computed(() => {
 
 const stickyPrimary = computed(() => {
   if (!order.value) return ''
+  if (showCashAppVerification.value) return 'verify'
   if (canBuyLabel.value) return 'buy'
   if (order.value.shippingStatus === 'label_purchasing') return 'refresh'
   if (order.value.shippingLabelUrl && order.value.shippingStatus !== 'shipped' && order.value.shippingStatus !== 'delivered') {
@@ -685,6 +1001,15 @@ function extractLabelError(errOrRes: any): { message: string; step?: string; det
 const fulfillmentHint = computed(() => {
   if (!order.value) return ''
   if (order.value.paymentStatus !== 'paid') {
+    if (isManualCashAppOrder.value) {
+      if (order.value.paymentStatus === 'processing') {
+        return 'Customer says they paid. Verify in Cash App, then mark payment received.'
+      }
+      if (order.value.paymentStatus === 'failed') {
+        return 'Payment was rejected. Waiting for the customer to correct and reclaim.'
+      }
+      return 'Awaiting Cash App payment. Label stays locked until you verify.'
+    }
     return 'Label can be purchased after payment is confirmed.'
   }
   switch (order.value.shippingStatus) {
@@ -706,6 +1031,8 @@ const fulfillmentHint = computed(() => {
 
 const fulfillmentHintClass = computed(() => {
   const s = order.value?.shippingStatus
+  if (order.value?.paymentStatus === 'failed') return 'text-red-400'
+  if (order.value?.paymentStatus === 'processing' && isManualCashAppOrder.value) return 'text-amber-400'
   if (s === 'label_failed') return 'text-red-400'
   if (s === 'label_purchased' || s === 'shipped') return 'text-emerald-400'
   if (s === 'label_purchasing') return 'text-amber-400'
@@ -766,6 +1093,66 @@ function requireOnline(): boolean {
   return false
 }
 
+async function markPaymentReceived(confirmInsufficientStock: boolean) {
+  if (actionLoading.value) return
+  if (!requireOnline()) return
+  actionLoading.value = 'payment'
+  try {
+    const res = await $fetch<any>(`/api/admin/orders/${orderId.value}/mark-payment-received`, {
+      method: 'POST',
+      credentials: 'include',
+      body: { confirmInsufficientStock },
+    })
+    stockConfirm.value = false
+    await refreshOrder()
+    showToast('success', res.message || 'Payment marked received.')
+  } catch (err: any) {
+    const body = err?.data && typeof err.data === 'object' ? err.data : null
+    const data = body?.data && typeof body.data === 'object' ? body.data : body
+    if (err?.statusCode === 409 || err?.status === 409) {
+      if (data?.insufficientStock && !confirmInsufficientStock) {
+        stockConfirmLines.value = (data.stockLines || []).filter((l: any) => l.insufficient)
+        stockConfirm.value = true
+        return
+      }
+    }
+    showToast('error', body?.message || err?.message || 'Could not mark payment received.')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
+function askRejectPayment() {
+  if (!requireOnline()) return
+  rejectReason.value = ''
+  rejectOpen.value = true
+}
+
+async function rejectPayment() {
+  if (actionLoading.value) return
+  if (!requireOnline()) return
+  const reason = rejectReason.value.trim()
+  if (!reason) {
+    showToast('error', 'A rejection reason is required.')
+    return
+  }
+  actionLoading.value = 'reject'
+  try {
+    const res = await $fetch<any>(`/api/admin/orders/${orderId.value}/reject-payment`, {
+      method: 'POST',
+      credentials: 'include',
+      body: { reason },
+    })
+    rejectOpen.value = false
+    await refreshOrder()
+    showToast('success', res.message || 'Payment rejected.')
+  } catch (err: any) {
+    showToast('error', err.data?.message || err.message || 'Could not reject payment.')
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
 /** Re-check Shippo for an in-flight transaction (idempotent — does not buy a new label). */
 async function refreshLabelStatus() {
   if (actionLoading.value) return
@@ -799,6 +1186,16 @@ async function refreshLabelStatus() {
   }
 }
 
+function askBuyLabel() {
+  if (actionLoading.value) return
+  if (!requireOnline()) return
+  buyConfirm.value = true
+}
+
+async function confirmBuyLabel() {
+  await buyLabel()
+}
+
 async function buyLabel() {
   if (actionLoading.value) return
   if (!requireOnline()) return
@@ -810,6 +1207,7 @@ async function buyLabel() {
       credentials: 'include',
     })
     await refreshOrder()
+    buyConfirm.value = false
     if (res?.ok === false) {
       const parsed = extractLabelError(res)
       labelActionError.value = parsed

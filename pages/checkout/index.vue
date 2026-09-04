@@ -470,6 +470,7 @@ const rateError = ref<string | null>(null)
 
 const pendingOrderId = ref<number | null>(null)
 const orderNumber = ref('')
+const paymentProvider = ref('')
 const idempotencyKey = ref('')
 const checkoutSessionToken = ref('')
 
@@ -631,6 +632,7 @@ async function prepareOrder() {
     taxCents: number
     totalCents: number
     paymentStatus: string
+    paymentProvider?: string
     shippingStatus: string
     checkoutSessionToken: string
   }>('/api/checkout/prepare', {
@@ -662,6 +664,7 @@ async function prepareOrder() {
 
   pendingOrderId.value = response.orderId
   orderNumber.value = response.orderNumber
+  paymentProvider.value = response.paymentProvider || ''
   checkoutSessionToken.value = response.checkoutSessionToken
   subtotalCents.value = response.subtotalCents || 0
   shippingCents.value = response.shippingCents || 0
@@ -800,7 +803,12 @@ function continueToPayment() {
 
   // Keep cart until payment succeeds so back-navigation from payment still works.
   // Prefer cookie-backed session; only pass orderId (no plaintext token in URL).
-  router.push(`/checkout/payment?orderId=${pendingOrderId.value}`)
+  const provider = String(paymentProvider.value || '')
+  if (!provider || provider === 'cashapp_manual' || provider === 'manual') {
+    router.push(`/checkout/cashapp?orderId=${pendingOrderId.value}`)
+  } else {
+    router.push(`/checkout/payment?orderId=${pendingOrderId.value}`)
+  }
 }
 
 useHead({

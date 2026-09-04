@@ -56,6 +56,17 @@ export interface StoreSettings {
   socialLinks: StoreSocialLinks
   announcementBanner: string
   announcementBannerEnabled: boolean
+  paymentMode: 'cashapp_manual' | 'moov' | 'manual_multi' | 'disabled'
+  cashAppEnabled: boolean
+  cashAppCashtag: string
+  cashAppDisplayName: string
+  cashAppPaymentUrl: string
+  cashAppQrImageUrl: string
+  manualPaymentExpirationHours: number
+  manualPaymentSupportEmail: string
+  zelleEnabled: boolean
+  zelleHandle: string
+  zelleDisplayName: string
   updatedAt: string | null
 }
 
@@ -85,6 +96,16 @@ export type PublicStoreSettings = Pick<
   | 'socialLinks'
   | 'announcementBanner'
   | 'announcementBannerEnabled'
+  | 'paymentMode'
+  | 'cashAppEnabled'
+  | 'cashAppCashtag'
+  | 'cashAppDisplayName'
+  | 'cashAppPaymentUrl'
+  | 'cashAppQrImageUrl'
+  | 'manualPaymentSupportEmail'
+  | 'zelleEnabled'
+  | 'zelleHandle'
+  | 'zelleDisplayName'
   | 'updatedAt'
 >
 
@@ -129,6 +150,17 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   socialLinks: {},
   announcementBanner: '',
   announcementBannerEnabled: false,
+  paymentMode: 'cashapp_manual',
+  cashAppEnabled: true,
+  cashAppCashtag: '',
+  cashAppDisplayName: '',
+  cashAppPaymentUrl: '',
+  cashAppQrImageUrl: '',
+  manualPaymentExpirationHours: 48,
+  manualPaymentSupportEmail: '',
+  zelleEnabled: false,
+  zelleHandle: '',
+  zelleDisplayName: '',
   updatedAt: null,
 }
 
@@ -183,8 +215,42 @@ export function toPublicStoreSettings(settings: StoreSettings): PublicStoreSetti
     socialLinks: withPolicies.socialLinks || {},
     announcementBanner: withPolicies.announcementBanner,
     announcementBannerEnabled: withPolicies.announcementBannerEnabled,
+    paymentMode: withPolicies.paymentMode,
+    cashAppEnabled: withPolicies.cashAppEnabled,
+    cashAppCashtag: withPolicies.cashAppCashtag,
+    cashAppDisplayName: withPolicies.cashAppDisplayName,
+    cashAppPaymentUrl: withPolicies.cashAppPaymentUrl,
+    cashAppQrImageUrl: withPolicies.cashAppQrImageUrl,
+    manualPaymentSupportEmail: withPolicies.manualPaymentSupportEmail,
+    zelleEnabled: withPolicies.zelleEnabled,
+    zelleHandle: withPolicies.zelleHandle,
+    zelleDisplayName: withPolicies.zelleDisplayName,
     updatedAt: withPolicies.updatedAt,
   }
+}
+
+export function isCashAppConfigured(
+  settings: Pick<StoreSettings, 'cashAppEnabled' | 'cashAppCashtag' | 'cashAppDisplayName'>
+): boolean {
+  return Boolean(
+    settings.cashAppEnabled &&
+      settings.cashAppCashtag?.trim() &&
+      settings.cashAppDisplayName?.trim()
+  )
+}
+
+export function isCashAppCheckoutReady(
+  settings: Pick<
+    StoreSettings,
+    'paymentMode' | 'cashAppEnabled' | 'cashAppCashtag' | 'cashAppDisplayName'
+  >
+): boolean {
+  if (settings.paymentMode === 'disabled') return false
+  if (settings.paymentMode === 'moov') return true
+  if (settings.paymentMode === 'cashapp_manual' || settings.paymentMode === 'manual_multi') {
+    return isCashAppConfigured(settings)
+  }
+  return false
 }
 
 export function isShipFromComplete(settings: Pick<

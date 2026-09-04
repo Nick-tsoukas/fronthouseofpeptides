@@ -70,6 +70,22 @@ function mapStrapiAttributes(attrs: Record<string, any> | null | undefined, upda
     socialLinks: normalizeSocialLinks(a.socialLinks),
     announcementBanner: str(a.announcementBanner),
     announcementBannerEnabled: Boolean(a.announcementBannerEnabled),
+    paymentMode: (['cashapp_manual', 'moov', 'manual_multi', 'disabled'].includes(String(a.paymentMode))
+      ? String(a.paymentMode)
+      : DEFAULT_STORE_SETTINGS.paymentMode) as StoreSettings['paymentMode'],
+    cashAppEnabled: a.cashAppEnabled !== false,
+    cashAppCashtag: str(a.cashAppCashtag),
+    cashAppDisplayName: str(a.cashAppDisplayName),
+    cashAppPaymentUrl: str(a.cashAppPaymentUrl),
+    cashAppQrImageUrl: str(a.cashAppQrImageUrl),
+    manualPaymentExpirationHours: Math.max(
+      1,
+      Number(a.manualPaymentExpirationHours) || DEFAULT_STORE_SETTINGS.manualPaymentExpirationHours
+    ),
+    manualPaymentSupportEmail: str(a.manualPaymentSupportEmail),
+    zelleEnabled: Boolean(a.zelleEnabled),
+    zelleHandle: str(a.zelleHandle),
+    zelleDisplayName: str(a.zelleDisplayName),
     updatedAt: updatedAt || str(a.updatedAt) || null,
   }
 }
@@ -173,6 +189,22 @@ export function settingsToStrapiData(body: Partial<StoreSettings>): Record<strin
     socialLinks: social,
     announcementBanner: str(body.announcementBanner),
     announcementBannerEnabled: Boolean(body.announcementBannerEnabled),
+    paymentMode: (['cashapp_manual', 'moov', 'manual_multi', 'disabled'].includes(String(body.paymentMode))
+      ? String(body.paymentMode)
+      : DEFAULT_STORE_SETTINGS.paymentMode),
+    cashAppEnabled: body.cashAppEnabled !== false,
+    cashAppCashtag: str(body.cashAppCashtag),
+    cashAppDisplayName: str(body.cashAppDisplayName),
+    cashAppPaymentUrl: str(body.cashAppPaymentUrl),
+    cashAppQrImageUrl: str(body.cashAppQrImageUrl),
+    manualPaymentExpirationHours: Math.max(
+      1,
+      Number(body.manualPaymentExpirationHours) || DEFAULT_STORE_SETTINGS.manualPaymentExpirationHours
+    ),
+    manualPaymentSupportEmail: str(body.manualPaymentSupportEmail),
+    zelleEnabled: Boolean(body.zelleEnabled),
+    zelleHandle: str(body.zelleHandle),
+    zelleDisplayName: str(body.zelleDisplayName),
   }
 }
 

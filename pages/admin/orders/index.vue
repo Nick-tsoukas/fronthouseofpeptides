@@ -62,9 +62,10 @@
             <p class="text-white font-semibold shrink-0">{{ formatCents(order.totalCents) }}</p>
           </div>
           <div class="flex flex-wrap gap-1.5 mb-3">
-            <span :class="paymentBadgeClass(order.paymentStatus)">{{ paymentLabel(order.paymentStatus) }}</span>
+            <span :class="paymentBadgeClass(order.paymentStatus, order)">{{ paymentLabel(order.paymentStatus, order) }}</span>
             <span :class="badgeClass(fulfillmentBadge(order).kind)">{{ fulfillmentBadge(order).label }}</span>
           </div>
+          <p class="text-cyan-300/90 text-xs mb-2">{{ nextActionHint(order) }}</p>
           <p class="text-dark-500 text-xs mb-3">{{ formatDate(order.createdAt) }}</p>
           <NuxtLink
             :to="`/admin/orders/${order.id}`"
@@ -104,7 +105,7 @@
                 <p class="text-dark-400 text-xs">{{ order.email }}</p>
               </td>
               <td class="px-4 py-3">
-                <span :class="paymentBadgeClass(order.paymentStatus)">{{ paymentLabel(order.paymentStatus) }}</span>
+                <span :class="paymentBadgeClass(order.paymentStatus, order)">{{ paymentLabel(order.paymentStatus, order) }}</span>
               </td>
               <td class="px-4 py-3">
                 <span :class="badgeClass(fulfillmentBadge(order).kind)">{{ fulfillmentBadge(order).label }}</span>
@@ -186,7 +187,7 @@
 </template>
 
 <script setup lang="ts">
-import { badgeClass, fulfillmentBadge, paymentBadgeClass, paymentLabel } from '~/utils/adminFulfillment'
+import { badgeClass, fulfillmentBadge, nextActionHint, paymentBadgeClass, paymentLabel } from '~/utils/adminFulfillment'
 
 definePageMeta({
   layout: 'admin',
@@ -206,11 +207,12 @@ const clearSuccess = ref('')
 
 const filters = [
   { value: 'all', label: 'All' },
-  { value: 'new_paid', label: 'New / Paid' },
+  { value: 'needs_verification', label: 'Needs Payment Verification' },
+  { value: 'awaiting_cashapp', label: 'Awaiting Cash App' },
   { value: 'ready_to_ship', label: 'Ready to Ship' },
   { value: 'label_purchased', label: 'Label Purchased' },
   { value: 'shipped', label: 'Shipped' },
-  { value: 'attention', label: 'Failed / Needs Attention' },
+  { value: 'attention', label: 'Failed / Attention' },
 ]
 
 const formatCents = (cents: number) => `$${((Number(cents) || 0) / 100).toFixed(2)}`

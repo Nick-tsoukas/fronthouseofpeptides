@@ -27,16 +27,21 @@ export function usePwaInstall(kind: 'admin' | 'store' = 'admin') {
   const justInstalled = useState('pwa-just-installed', () => false)
   const standalone = useState('pwa-standalone', () => false)
   const ios = useState('pwa-ios', () => false)
+  /** False until client attach() — prevents SSR/hydration install-chrome mismatches. */
+  const ready = useState('pwa-install-ready', () => false)
 
   const promptEvent = computed(() => (kind === 'admin' ? adminPrompt.value : storePrompt.value))
   const canNativeInstall = computed(() => Boolean(promptEvent.value) && !standalone.value)
-  const showInstall = computed(() => !standalone.value && !justInstalled.value)
+  const showInstall = computed(
+    () => ready.value && !standalone.value && !justInstalled.value
+  )
 
   function attach() {
     if (!import.meta.client || attached.value) return
     attached.value = true
     standalone.value = readStandalone()
     ios.value = readIOS()
+    ready.value = true
 
     window.addEventListener('beforeinstallprompt', (event) => {
       event.preventDefault()
@@ -53,6 +58,10 @@ export function usePwaInstall(kind: 'admin' | 'store' = 'admin') {
       storePrompt.value = null
       justInstalled.value = true
       standalone.value = true
+    })
+
+    window.matchMedia('(display-mode: standalone)').addEventListener('change', () => {
+      standalone.value = readStandalone()
     })
   }
 
@@ -73,6 +82,7 @@ export function usePwaInstall(kind: 'admin' | 'store' = 'admin') {
   return {
     canNativeInstall,
     showInstall,
+    ready,
     standalone,
     ios,
     justInstalled,

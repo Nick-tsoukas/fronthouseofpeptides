@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { escapeHtml } from '~/server/utils/escapeHtml'
 
 export interface OrderEmailItem {
   productName: string
@@ -468,26 +469,26 @@ function buildTrackingEmailHtml(data: {
   const { storeName, supportEmail } = resolveBrand(brand)
   const carrierLine =
     data.carrier || data.service
-      ? `<p style="margin:0 0 8px;color:#9ca3af;">Carrier: <strong style="color:#fff;">${data.carrier || '—'}</strong>${
-          data.service ? ` · ${data.service}` : ''
+      ? `<p style="margin:0 0 8px;color:#9ca3af;">Carrier: <strong style="color:#fff;">${escapeHtml(data.carrier || '—')}</strong>${
+          data.service ? ` · ${escapeHtml(data.service)}` : ''
         }</p>`
       : ''
 
   return `
   <div style="font-family:system-ui,-apple-system,sans-serif;background:#0b1220;padding:32px;color:#e5e7eb;">
     <div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:28px;">
-      <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#67e8f9;">${storeName}</p>
+      <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#67e8f9;">${escapeHtml(storeName)}</p>
       <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Your order has tracking</h1>
-      <p style="margin:0 0 16px;color:#9ca3af;">Your order is being prepared for shipment. Tracking will update as the carrier scans the package.</p>
-      <p style="margin:0 0 8px;color:#9ca3af;">Order number: <strong style="color:#fff;font-family:monospace;">${data.orderNumber}</strong></p>
+      <p style="margin:0 0 16px;color:#9ca3af;">Hi ${escapeHtml(data.customerName)}. Your order is on the way. Tracking will update as the carrier scans the package.</p>
+      <p style="margin:0 0 8px;color:#9ca3af;">Order number: <strong style="color:#fff;font-family:monospace;">${escapeHtml(data.orderNumber)}</strong></p>
       ${carrierLine}
-      <p style="margin:0 0 8px;color:#9ca3af;">Tracking number: <strong style="color:#fff;font-family:monospace;">${data.trackingNumber}</strong></p>
+      <p style="margin:0 0 8px;color:#9ca3af;">Tracking number: <strong style="color:#fff;font-family:monospace;">${escapeHtml(data.trackingNumber)}</strong></p>
       <p style="margin:24px 0 0;">
-        <a href="${data.trackingUrl}" style="display:inline-block;background:#06b6d4;color:#041016;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:10px;">
+        <a href="${escapeHtml(data.trackingUrl)}" style="display:inline-block;background:#06b6d4;color:#041016;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:10px;">
           Track your package
         </a>
       </p>
-      <p style="margin:24px 0 0;font-size:12px;color:#6b7280;">Questions? ${supportEmail}</p>
+      <p style="margin:24px 0 0;font-size:12px;color:#6b7280;">Questions? ${escapeHtml(supportEmail)}</p>
     </div>
   </div>`
 }
@@ -537,5 +538,170 @@ export async function sendTrackingEmail(
     console.error(`[email] Tracking email failed for ${data.orderNumber}:`, err?.message || err)
     return { sent: false, error: 'Could not send tracking email.' }
   }
+}
+
+type SmtpConfig = {
+  smtpHost: string
+  smtpPort: string
+  smtpUser: string
+  smtpPass: string
+  orderFromEmail: string
+  ownerOrderEmail?: string
+  brand?: EmailBrand
+}
+
+function smtpReady(config: SmtpConfig): boolean {
+  return Boolean(config.smtpHost && config.smtpUser && config.smtpPass && config.orderFromEmail)
+}
+
+function makeTransporter(config: SmtpConfig) {
+  return nodemailer.createTransport({
+    host: config.smtpHost,
+    port: parseInt(config.smtpPort, 10) || 587,
+    secure: false,
+    auth: { user: config.smtpUser, pass: config.smtpPass },
+  })
+}
+
+function formatCents(cents: number): string {
+  return `$${(Number(cents) / 100).toFixed(2)}`
+}
+
+export async function sendCashAppInstructionsEmail(
+  data: {
+    orderNumber: string
+    email: string
+    customerName: string
+    totalCents: number
+    cashtag: string
+    displayName: string
+    paymentUrl?: string
+    supportEmail?: string
+  },
+  config: SmtpConfig
+): Promise<{ sent: boolean }> {
+  if (!smtpReady(config)) return { sent: false }
+  const brand = resolveBrand(config.brand)
+  const support = data.supportEmail || brand.supportEmail
+  const html = `
+  <div style="font-family:system-ui,sans-serif;background:#0b1220;padding:32px;color:#e5e7eb;">
+    <div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:28px;">
+      <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Pay with Cash App</h1>
+      <p style="margin:0 0 12px;color:#9ca3af;">Hi ${escapeHtml(data.customerName)},</p>
+      <p style="margin:0 0 12px;color:#9ca3af;">No card was charged. Send the exact total below in Cash App. Your order is not confirmed until payment is verified. Tracking will be emailed when your order ships.</p>
+      <p style="margin:0 0 8px;">Order: <strong style="color:#fff;font-family:monospace;">${escapeHtml(data.orderNumber)}</strong></p>
+      <p style="margin:0 0 8px;">Amount: <strong style="color:#fff;">${formatCents(data.totalCents)}</strong></p>
+      <p style="margin:0 0 8px;">Cash App: <strong style="color:#fff;">${escapeHtml(data.cashtag)}</strong></p>
+      <p style="margin:0 0 8px;">Name: <strong style="color:#fff;">${escapeHtml(data.displayName)}</strong></p>
+      ${data.paymentUrl ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(data.paymentUrl)}" style="color:#67e8f9;">Open Cash App payment link</a></p>` : ''}
+      <p style="margin:24px 0 0;font-size:12px;color:#6b7280;">Support: ${escapeHtml(support)} · Research use only.</p>
+    </div>
+  </div>`
+  await makeTransporter(config).sendMail({
+    from: config.orderFromEmail,
+    to: data.email,
+    subject: `Cash App payment instructions — ${data.orderNumber}`,
+    html,
+  })
+  return { sent: true }
+}
+
+export async function sendPaymentClaimedOwnerEmail(
+  data: {
+    orderId: number
+    orderNumber: string
+    customerName: string
+    email: string
+    totalCents: number
+    senderName?: string
+    cashAppHandle?: string
+    note?: string
+  },
+  config: SmtpConfig
+): Promise<{ sent: boolean }> {
+  if (!smtpReady(config) || !config.ownerOrderEmail) return { sent: false }
+  const html = `
+  <div style="font-family:system-ui,sans-serif;background:#0b1220;padding:24px;color:#e5e7eb;">
+    <h2 style="color:#fff;">Customer says Cash App paid</h2>
+    <p>Order <strong>${escapeHtml(data.orderNumber)}</strong> · ${formatCents(data.totalCents)}</p>
+    <p>Customer: ${escapeHtml(data.customerName)} &lt;${escapeHtml(data.email)}&gt;</p>
+    <p>Claimed sender: ${escapeHtml(data.senderName || '—')}</p>
+    <p>Cash App handle: ${escapeHtml(data.cashAppHandle || '—')}</p>
+    <p>Note: ${escapeHtml(data.note || '—')}</p>
+    <p><a href="https://quantumbiopeptides.com/admin/orders/${data.orderId}" style="color:#67e8f9;">Open order in admin</a></p>
+  </div>`
+  await makeTransporter(config).sendMail({
+    from: config.orderFromEmail,
+    to: config.ownerOrderEmail,
+    subject: `Needs verification — ${data.orderNumber}`,
+    html,
+  })
+  return { sent: true }
+}
+
+export async function sendPaymentClaimedCustomerEmail(
+  data: {
+    orderId: number
+    orderNumber: string
+    customerName: string
+    email: string
+    totalCents: number
+    supportEmail?: string
+  },
+  config: SmtpConfig
+): Promise<{ sent: boolean }> {
+  if (!smtpReady(config) || !data.email) return { sent: false }
+  const brand = resolveBrand(config.brand)
+  const support = data.supportEmail || brand.supportEmail
+  const html = `
+  <div style="font-family:system-ui,sans-serif;background:#0b1220;padding:32px;color:#e5e7eb;">
+    <div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:28px;">
+      <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Payment submission received</h1>
+      <p style="color:#9ca3af;">Hi ${escapeHtml(data.customerName)},</p>
+      <p style="color:#9ca3af;">Your payment submission for order <strong style="color:#fff;font-family:monospace;">${escapeHtml(data.orderNumber)}</strong> (${formatCents(data.totalCents)}) was received and is awaiting verification. Once verified, you’ll receive order confirmation. Tracking will be emailed when your order ships.</p>
+      <p style="margin-top:24px;font-size:12px;color:#6b7280;">Support: ${escapeHtml(support)}</p>
+    </div>
+  </div>`
+  await makeTransporter(config).sendMail({
+    from: config.orderFromEmail,
+    to: data.email,
+    subject: `Payment submitted — ${data.orderNumber}`,
+    html,
+  })
+  return { sent: true }
+}
+
+export async function sendPaymentRejectedEmail(
+  data: {
+    orderId: number
+    orderNumber: string
+    customerName: string
+    email: string
+    totalCents: number
+    reason: string
+    supportEmail?: string
+  },
+  config: SmtpConfig
+): Promise<{ sent: boolean }> {
+  if (!smtpReady(config) || !data.email) return { sent: false }
+  const brand = resolveBrand(config.brand)
+  const support = data.supportEmail || brand.supportEmail
+  const html = `
+  <div style="font-family:system-ui,sans-serif;background:#0b1220;padding:32px;color:#e5e7eb;">
+    <div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:28px;">
+      <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Payment needs a correction</h1>
+      <p style="color:#9ca3af;">Hi ${escapeHtml(data.customerName)},</p>
+      <p style="color:#9ca3af;">We could not verify payment for order <strong style="color:#fff;font-family:monospace;">${escapeHtml(data.orderNumber)}</strong> (${formatCents(data.totalCents)}).</p>
+      <p style="color:#9ca3af;"><strong style="color:#fff;">Reason:</strong> ${escapeHtml(data.reason)}</p>
+      <p style="color:#9ca3af;">Please reply to ${escapeHtml(support)} or resubmit payment with the correct amount and order number in the Cash App note. Inventory was not reserved.</p>
+    </div>
+  </div>`
+  await makeTransporter(config).sendMail({
+    from: config.orderFromEmail,
+    to: data.email,
+    subject: `Payment correction needed — ${data.orderNumber}`,
+    html,
+  })
+  return { sent: true }
 }
 

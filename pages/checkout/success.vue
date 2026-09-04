@@ -76,8 +76,14 @@
             {{ isPaid ? 'Order confirmed' : 'Confirming payment' }}
           </h1>
           <p class="text-dark-300 mt-3 text-sm sm:text-base leading-relaxed max-w-md mx-auto">
-            <template v-if="isPaid">
+            <template v-if="isPaid && isCashApp">
+              Payment received. We’re preparing your order and will email tracking when it ships.
+            </template>
+            <template v-else-if="isPaid">
               Thank you. Your payment went through and we’re preparing your order.
+            </template>
+            <template v-else-if="isCashApp">
+              Your Cash App order is submitted. We’ll confirm once payment is verified.
             </template>
             <template v-else>
               Your order was submitted. We’re waiting on final payment confirmation.
@@ -114,6 +120,37 @@
           </div>
         </div>
 
+        <div
+          v-if="isPaid"
+          class="mb-6 rounded-xl border border-dark-700/80 bg-dark-950/50 px-4 py-4 space-y-3 text-sm"
+        >
+          <p class="text-white font-medium">Tracking</p>
+          <template v-if="trackingNumber || trackingUrl">
+            <div v-if="shippingCarrier || shippingService" class="flex justify-between gap-4">
+              <span class="text-dark-400">Carrier / service</span>
+              <span class="text-white text-right">
+                {{ shippingCarrier }}{{ shippingCarrier && shippingService ? ' — ' : '' }}{{ shippingService }}
+              </span>
+            </div>
+            <div v-if="trackingNumber" class="flex justify-between gap-4">
+              <span class="text-dark-400">Tracking number</span>
+              <span class="text-white font-mono text-xs text-right break-all">{{ trackingNumber }}</span>
+            </div>
+            <a
+              v-if="trackingUrl"
+              :href="trackingUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex min-h-[44px] items-center text-cyan-400 hover:text-cyan-300"
+            >
+              Open tracking
+            </a>
+          </template>
+          <p v-else class="text-dark-300 leading-relaxed">
+            Tracking is not available yet. We’ll email it when your order ships.
+          </p>
+        </div>
+
         <div class="pt-1 space-y-2.5 text-sm">
           <div class="flex justify-between text-dark-300">
             <span>Subtotal</span>
@@ -134,7 +171,13 @@
         </div>
 
         <div
-          v-if="isPaid"
+          v-if="isPaid && isCashApp"
+          class="mt-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-dark-300 leading-relaxed"
+        >
+          Your Cash App payment is confirmed. A receipt was emailed to you.
+        </div>
+        <div
+          v-else-if="isPaid"
           class="mt-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-dark-300 leading-relaxed"
         >
           A receipt was emailed to you. You’ll get tracking when your order ships.
@@ -178,6 +221,10 @@ const paymentStatus = ref('')
 const shippingStatus = ref('')
 const shippingCarrier = ref('')
 const shippingService = ref('')
+const trackingNumber = ref('')
+const trackingUrl = ref('')
+const paymentProvider = ref('')
+const paymentMethod = ref('')
 const subtotalCents = ref(0)
 const shippingCostCents = ref(0)
 const taxCents = ref(0)
@@ -188,6 +235,11 @@ let autoPollAttempts = 0
 
 const isTestMode = computed(() => (config.public.moovMode as string || 'test') === 'test')
 const isPaid = computed(() => paymentStatus.value === 'paid')
+const isCashApp = computed(() => {
+  const provider = String(paymentProvider.value || '').toLowerCase()
+  const method = String(paymentMethod.value || '').toLowerCase()
+  return provider === 'cashapp_manual' || provider === 'manual' || method === 'cashapp'
+})
 const formatCents = (cents: number) => `${CURRENCY.SYMBOL}${((Number(cents) || 0) / 100).toFixed(2)}`
 
 const displayPaymentStatus = computed(() => {
@@ -206,6 +258,10 @@ function applyStatus(status: {
   shippingStatus?: string | null
   shippingCarrier?: string | null
   shippingService?: string | null
+  trackingNumber?: string | null
+  trackingUrl?: string | null
+  paymentProvider?: string | null
+  paymentMethod?: string | null
   subtotalCents?: number
   shippingCostCents?: number
   taxCents?: number
@@ -216,6 +272,10 @@ function applyStatus(status: {
   shippingStatus.value = status.shippingStatus || ''
   shippingCarrier.value = status.shippingCarrier || ''
   shippingService.value = status.shippingService || ''
+  trackingNumber.value = status.trackingNumber || ''
+  trackingUrl.value = status.trackingUrl || ''
+  paymentProvider.value = status.paymentProvider || ''
+  paymentMethod.value = status.paymentMethod || ''
   subtotalCents.value = Number(status.subtotalCents) || 0
   shippingCostCents.value = Number(status.shippingCostCents) || 0
   taxCents.value = Number(status.taxCents) || 0
@@ -237,6 +297,10 @@ async function loadStatus() {
     shippingStatus?: string
     shippingCarrier?: string | null
     shippingService?: string | null
+    trackingNumber?: string | null
+    trackingUrl?: string | null
+    paymentProvider?: string | null
+    paymentMethod?: string | null
     subtotalCents?: number
     shippingCostCents?: number
     taxCents?: number

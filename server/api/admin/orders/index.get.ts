@@ -25,6 +25,8 @@ function normalizeOrder(entry: any) {
     status: a.status || null,
     paymentStatus: a.paymentStatus || null,
     shippingStatus: a.shippingStatus || null,
+    paymentProvider: a.paymentProvider || null,
+    paymentMethod: a.paymentMethod || null,
     subtotalCents: centsOrFallback(a.subtotalCents, a.amountSubtotal),
     shippingCostCents: centsOrFallback(a.shippingCostCents ?? a.shippingCents, a.shippingAmount),
     taxCents: Number(a.taxCents) || 0,
@@ -36,6 +38,13 @@ function normalizeOrder(entry: any) {
     shippingCarrier: a.shippingCarrier || null,
     shippingService: a.shippingService || null,
   }
+}
+
+function applyManualCashAppOr(params: URLSearchParams, andIndex: number) {
+  // paymentProvider cashapp_manual | manual | paymentMethod cashapp
+  params.set(`filters[$and][${andIndex}][$or][0][paymentProvider][$eq]`, 'cashapp_manual')
+  params.set(`filters[$and][${andIndex}][$or][1][paymentProvider][$eq]`, 'manual')
+  params.set(`filters[$and][${andIndex}][$or][2][paymentMethod][$eq]`, 'cashapp')
 }
 
 export default defineEventHandler(async (event) => {
@@ -57,18 +66,24 @@ export default defineEventHandler(async (event) => {
   params.set('pagination[pageSize]', String(pageSize))
   params.set('populate[orderItems][fields][0]', 'id')
 
-  // Prefer paymentStatus / shippingStatus filters matching commerce reality
   if (filter === 'pending') {
     params.set('filters[paymentStatus][$eq]', 'pending')
   } else if (filter === 'processing') {
     params.set('filters[paymentStatus][$eq]', 'processing')
+  } else if (filter === 'needs_verification') {
+    params.set('filters[$and][0][paymentStatus][$eq]', 'processing')
+    applyManualCashAppOr(params, 1)
+  } else if (filter === 'awaiting_cashapp') {
+    params.set('filters[$and][0][paymentStatus][$eq]', 'pending')
+    applyManualCashAppOr(params, 1)
   } else if (filter === 'paid' || filter === 'new_paid') {
     params.set('filters[$and][0][paymentStatus][$eq]', 'paid')
     params.set('filters[$and][1][shippingStatus][$notIn][0]', 'shipped')
     params.set('filters[$and][1][shippingStatus][$notIn][1]', 'delivered')
   } else if (filter === 'ready_to_ship') {
-    params.set('filters[$or][0][shippingStatus][$eq]', 'ready_to_ship')
-    params.set('filters[$or][1][shippingStatus][$eq]', 'selected')
+    params.set('filters[$and][0][paymentStatus][$eq]', 'paid')
+    params.set('filters[$and][1][$or][0][shippingStatus][$eq]', 'ready_to_ship')
+    params.set('filters[$and][1][$or][1][shippingStatus][$eq]', 'selected')
   } else if (filter === 'label_purchased') {
     params.set('filters[shippingStatus][$eq]', 'label_purchased')
   } else if (filter === 'failed') {

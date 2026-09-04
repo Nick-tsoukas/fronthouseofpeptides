@@ -218,6 +218,8 @@ export async function verifyMoovTransferAgainstOrder(
   }
 }
 
+const FINALIZING_TTL_MS = 2 * 60 * 1000
+
 export async function applyVerifiedTransferToOrder(opts: {
   event: any
   strapiUrl: string
@@ -228,7 +230,12 @@ export async function applyVerifiedTransferToOrder(opts: {
   processedWebhookIds?: string[]
   eventId?: string
   sendEmailsOnPaid?: boolean
-}): Promise<{ paymentStatus: string; inventoryCommitted: boolean; paidAt: string | null }> {
+}): Promise<{
+  paymentStatus: string
+  inventoryCommitted: boolean
+  paidAt: string | null
+  busy?: boolean
+}> {
   const {
     event,
     strapiUrl,
@@ -263,8 +270,24 @@ export async function applyVerifiedTransferToOrder(opts: {
   let stockAlerts: InventoryCommitResult['alerts'] = []
 
   if (mappedPaymentStatus === 'paid' && !alreadyPaid) {
+    // Busy-safe: another finalizer (manual Cash App or concurrent webhook) holds the claim
+    const finalizingAt = attrs.paymentFinalizingAt ? Date.parse(attrs.paymentFinalizingAt) : NaN
+    if (
+      Number.isFinite(finalizingAt) &&
+      Date.now() - finalizingAt < FINALIZING_TTL_MS &&
+      attrs.paymentStatus !== 'paid'
+    ) {
+      return {
+        paymentStatus: attrs.paymentStatus || 'processing',
+        inventoryCommitted: alreadyCommitted,
+        paidAt: attrs.paidAt || null,
+        busy: true,
+      }
+    }
+
     updateData.paymentStatus = 'paid'
     updateData.paidAt = new Date().toISOString()
+    updateData.paymentFinalizingAt = null
     updateData.paymentProvider = attrs.paymentProvider || 'moov'
     updateData.paymentMethod = attrs.paymentMethod || 'card'
     // Keep commerce order status out of "awaiting_payment" once paid
@@ -279,7 +302,7 @@ export async function applyVerifiedTransferToOrder(opts: {
     ) {
       updateData.shippingStatus = 'ready_to_ship'
     }
-    shouldSendEmails = sendEmailsOnPaid
+    shouldSendEmails = sendEmailsOnPaid && !attrs.paidReceiptSentAt
     shouldNotifyPaid = true
 
     if (!alreadyCommitted) {
@@ -294,6 +317,23 @@ export async function applyVerifiedTransferToOrder(opts: {
   }
 
   if (shouldCommitInventory) {
+    const claimAt = new Date().toISOString()
+    try {
+      await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: { data: { paymentFinalizingAt: claimAt } },
+      })
+    } catch (err: any) {
+      console.error('[moov] paymentFinalizingAt claim failed:', err?.message || err)
+      return {
+        paymentStatus: attrs.paymentStatus || 'processing',
+        inventoryCommitted: alreadyCommitted,
+        paidAt: attrs.paidAt || null,
+        busy: true,
+      }
+    }
+
     try {
       // Load items with variants if not already populated
       let orderItems = attrs.orderItems?.data || []
@@ -306,10 +346,12 @@ export async function applyVerifiedTransferToOrder(opts: {
       }
       const commit = await commitInventoryOnce(strapiUrl, authHeaders, orderId, orderItems)
       stockAlerts = commit.alerts
+      updateData.paymentFinalizingAt = null
     } catch (err: any) {
       console.error('Inventory commit failed:', err?.message || err)
       updateData.inventoryCommitted = false
       updateData.inventoryAdjusted = false
+      updateData.paymentFinalizingAt = null
       updateData.ownerNotes = [
         attrs.ownerNotes,
         'Inventory decrement failed after paid Moov transfer. Manual inventory check required.',
@@ -356,41 +398,49 @@ export async function applyVerifiedTransferToOrder(opts: {
       unitPrice: Number(item.attributes?.unitPriceSnapshot) || 0,
     }))
 
-    await sendPaidOrderEmails(
-      {
-        orderId,
-        orderNumber: attrs.orderNumber || String(orderId),
-        status: 'paid',
-        inventoryAdjusted: Boolean(updateData.inventoryAdjusted ?? attrs.inventoryAdjusted),
-        customerName: attrs.customerName || '',
-        email: attrs.email || '',
-        phone: attrs.phone || null,
-        companyName: attrs.companyName || null,
-        customerNotes: attrs.customerNotes || null,
-        shippingAddressLine1: attrs.shippingAddressLine1 || attrs.shippingAddress1 || '',
-        shippingAddressLine2: attrs.shippingAddressLine2 || attrs.shippingAddress2 || null,
-        shippingCity: attrs.shippingCity || '',
-        shippingState: attrs.shippingState || '',
-        shippingPostalCode: attrs.shippingPostalCode || '',
-        shippingCountry: attrs.shippingCountry || 'US',
-        amountSubtotal: (Number(attrs.subtotalCents) || 0) / 100,
-        shippingAmount: (Number(attrs.shippingCostCents) || Number(attrs.shippingCents) || 0) / 100,
-        amountTotal: (Number(attrs.totalCents) || 0) / 100,
-        currency: attrs.currency || 'USD',
-        items,
-      },
-      {
-        smtpHost: config.smtpHost as string,
-        smtpPort: config.smtpPort as string,
-        smtpUser: config.smtpUser as string,
-        smtpPass: config.smtpPass as string,
-        orderFromEmail: config.orderFromEmail as string,
-        ownerOrderEmail: config.ownerOrderEmail as string,
-        brand: await getEmailBrand(event),
-      }
-    ).catch((err: any) => {
+    try {
+      await sendPaidOrderEmails(
+        {
+          orderId,
+          orderNumber: attrs.orderNumber || String(orderId),
+          status: 'paid',
+          inventoryAdjusted: Boolean(updateData.inventoryAdjusted ?? attrs.inventoryAdjusted),
+          customerName: attrs.customerName || '',
+          email: attrs.email || '',
+          phone: attrs.phone || null,
+          companyName: attrs.companyName || null,
+          customerNotes: attrs.customerNotes || null,
+          shippingAddressLine1: attrs.shippingAddressLine1 || attrs.shippingAddress1 || '',
+          shippingAddressLine2: attrs.shippingAddressLine2 || attrs.shippingAddress2 || null,
+          shippingCity: attrs.shippingCity || '',
+          shippingState: attrs.shippingState || '',
+          shippingPostalCode: attrs.shippingPostalCode || '',
+          shippingCountry: attrs.shippingCountry || 'US',
+          amountSubtotal: (Number(attrs.subtotalCents) || 0) / 100,
+          shippingAmount: (Number(attrs.shippingCostCents) || Number(attrs.shippingCents) || 0) / 100,
+          amountTotal: (Number(attrs.totalCents) || 0) / 100,
+          currency: attrs.currency || 'USD',
+          items,
+        },
+        {
+          smtpHost: config.smtpHost as string,
+          smtpPort: config.smtpPort as string,
+          smtpUser: config.smtpUser as string,
+          smtpPass: config.smtpPass as string,
+          orderFromEmail: config.orderFromEmail as string,
+          ownerOrderEmail: config.ownerOrderEmail as string,
+          brand: await getEmailBrand(event),
+        }
+      )
+      const paidReceiptSentAt = new Date().toISOString()
+      await $fetch(`${strapiUrl}/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: { data: { paidReceiptSentAt } },
+      }).catch(() => {})
+    } catch (err: any) {
       console.error('Paid order email failed:', err?.message || err)
-    })
+    }
   }
 
   const orderLabel = attrs.orderNumber || `Order #${orderId}`

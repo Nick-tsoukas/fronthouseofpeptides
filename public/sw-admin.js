@@ -1,9 +1,8 @@
 /* Quantum Bio Owner Admin PWA service worker */
-const CACHE = 'qbp-admin-v5'
+const CACHE = 'qbp-admin-v6'
+const CACHE_PREFIX = 'qbp-admin-'
+// Precache icons/manifest only — never pin SSR HTML shells (stale chunks → Nuxt errors).
 const PRECACHE = [
-  '/admin',
-  '/admin/login',
-  '/admin/install',
   '/admin.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -21,7 +20,11 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      Promise.all(
+        keys
+          .filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE)
+          .map((k) => caches.delete(k))
+      )
     ).then(() => self.clients.claim())
   )
 })
@@ -100,6 +103,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     (async () => {
       try {
+        // Always network-first for admin navigations (avoid stale HTML/chunk mismatches).
         const network = await fetch(req)
         if (isIcon && network.ok) {
           const cache = await caches.open(CACHE)
@@ -107,11 +111,15 @@ self.addEventListener('fetch', (event) => {
         }
         return network
       } catch {
-        const cached = await caches.match(req)
-        if (cached) return cached
+        if (isIcon) {
+          const cached = await caches.match(req)
+          if (cached) return cached
+        }
         if (isAdminNav) {
-          const fallback = await caches.match('/admin')
-          if (fallback) return fallback
+          return new Response(
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline — QBP Owner</title></head><body style="margin:0;font-family:system-ui,sans-serif;background:#0b1220;color:#e5e7eb;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;text-align:center"><div><h1 style="font-size:1.25rem;margin:0 0 8px">You are offline</h1><p style="margin:0;color:#9ca3af;line-height:1.5">Reconnect to manage orders, mark payments, or buy labels.</p></div></body></html>',
+            { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } }
+          )
         }
         throw new Error('Offline')
       }
