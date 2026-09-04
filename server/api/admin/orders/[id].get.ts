@@ -92,6 +92,8 @@ export default defineEventHandler(async (event) => {
     labelPurchasedAt: a.labelPurchasedAt || null,
     trackingEmailSentAt: a.trackingEmailSentAt || null,
     shippedAt: a.shippedAt || null,
+    fulfillmentMethod: a.fulfillmentMethod || null,
+    manualTrackingAddedAt: a.manualTrackingAddedAt || null,
     labelErrorMessage: a.labelErrorMessage || null,
     subtotalCents: centsOrFallback(a.subtotalCents, a.amountSubtotal),
     shippingCostCents: centsOrFallback(a.shippingCostCents ?? a.shippingCents, a.shippingAmount),

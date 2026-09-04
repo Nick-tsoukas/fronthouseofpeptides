@@ -135,19 +135,21 @@
         ? 'pb-[max(6.5rem,env(safe-area-inset-bottom))]'
         : 'pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-[env(safe-area-inset-bottom)]'"
     >
-      <div
-        v-if="!online"
-        class="mx-4 mt-3 lg:mx-8 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
-      >
-        You are offline. Reconnect to manage orders.
+      <div class="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <div
+          v-if="!online"
+          class="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+        >
+          You are offline. Reconnect to manage orders.
+        </div>
+        <div
+          v-if="testModeActive"
+          class="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 leading-relaxed"
+        >
+          Test mode active — no real payment/postage behavior should be assumed live.
+        </div>
+        <slot />
       </div>
-      <div
-        v-if="testModeActive"
-        class="mx-4 mt-3 lg:mx-8 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 leading-relaxed"
-      >
-        Test mode active — no real payment/postage behavior should be assumed live.
-      </div>
-      <slot />
     </main>
 
     <!-- Mobile bottom nav (hidden on order detail so fulfillment actions can sit there) -->

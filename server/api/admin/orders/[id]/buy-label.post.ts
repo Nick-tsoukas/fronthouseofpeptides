@@ -213,6 +213,7 @@ export default defineEventHandler(async (event) => {
           trackingNumber: existing.tracking_number || attrs.trackingNumber || null,
           trackingUrl: existing.tracking_url_provider || attrs.trackingUrl || null,
           shippingStatus: 'label_purchased',
+          fulfillmentMethod: attrs.fulfillmentMethod || 'shippo_label',
           labelPurchasedAt: attrs.labelPurchasedAt || new Date().toISOString(),
           labelErrorMessage: null,
         }
@@ -463,6 +464,7 @@ export default defineEventHandler(async (event) => {
       labelCostCents: result.labelCostCents,
       labelPurchasedAt: new Date().toISOString(),
       shippingStatus: 'label_purchased',
+      fulfillmentMethod: 'shippo_label',
       labelErrorMessage: null,
     }
 

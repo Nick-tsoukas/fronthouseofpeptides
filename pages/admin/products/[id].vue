@@ -1,7 +1,7 @@
 <template>
-  <div class="p-6 lg:p-8">
+  <div class="pt-2 pb-6 sm:pb-8">
     <!-- Header -->
-    <div class="mb-8">
+    <div class="mb-8 mx-auto w-full max-w-3xl">
       <NuxtLink to="/admin/products" class="inline-flex items-center text-dark-400 hover:text-white mb-4 transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -13,7 +13,7 @@
     </div>
 
     <!-- Loading State -->
-    <div v-if="pending" class="space-y-6 max-w-3xl">
+    <div v-if="pending" class="space-y-6 mx-auto w-full max-w-3xl">
       <div class="bg-dark-900 rounded-xl border border-dark-700 p-6 animate-pulse">
         <div class="h-6 bg-dark-800 rounded w-1/3 mb-4"></div>
         <div class="space-y-4">
@@ -25,7 +25,7 @@
     </div>
 
     <!-- Not Found -->
-    <div v-else-if="!product" class="bg-dark-900 rounded-xl border border-dark-700 p-12 text-center max-w-3xl">
+    <div v-else-if="!product" class="bg-dark-900 rounded-xl border border-dark-700 p-12 text-center mx-auto w-full max-w-3xl">
       <h2 class="text-xl font-semibold text-white mb-2">Product Not Found</h2>
       <p class="text-dark-400 mb-6">The product you're looking for doesn't exist.</p>
       <NuxtLink 
@@ -37,7 +37,7 @@
     </div>
 
     <!-- Form -->
-    <form v-else @submit.prevent="handleSubmit" class="space-y-6 max-w-3xl">
+    <form v-else @submit.prevent="handleSubmit" class="space-y-6 mx-auto w-full max-w-3xl">
       <!-- Basic Info -->
       <div class="bg-dark-900 rounded-xl border border-dark-700 p-6">
         <h2 class="text-lg font-semibold text-white mb-4">Basic Information</h2>

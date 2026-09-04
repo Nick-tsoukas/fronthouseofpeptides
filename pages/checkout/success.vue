@@ -76,11 +76,8 @@
             {{ isPaid ? 'Order confirmed' : 'Confirming payment' }}
           </h1>
           <p class="text-dark-300 mt-3 text-sm sm:text-base leading-relaxed max-w-md mx-auto">
-            <template v-if="isPaid && isCashApp">
-              Payment received. We’re preparing your order and will email tracking when it ships.
-            </template>
-            <template v-else-if="isPaid">
-              Thank you. Your payment went through and we’re preparing your order.
+            <template v-if="isPaid">
+              Payment received. Your order is confirmed. You’ll receive tracking by email when your order ships.
             </template>
             <template v-else-if="isCashApp">
               Your Cash App order is submitted. We’ll confirm once payment is verified.
@@ -148,6 +145,12 @@
           </template>
           <p v-else class="text-dark-300 leading-relaxed">
             Tracking is not available yet. We’ll email it when your order ships.
+          </p>
+          <p
+            v-if="trackingEmailSentAt && (trackingNumber || trackingUrl)"
+            class="text-emerald-400/90 text-xs"
+          >
+            Tracking email sent.
           </p>
         </div>
 
@@ -223,6 +226,7 @@ const shippingCarrier = ref('')
 const shippingService = ref('')
 const trackingNumber = ref('')
 const trackingUrl = ref('')
+const trackingEmailSentAt = ref('')
 const paymentProvider = ref('')
 const paymentMethod = ref('')
 const subtotalCents = ref(0)
@@ -260,6 +264,7 @@ function applyStatus(status: {
   shippingService?: string | null
   trackingNumber?: string | null
   trackingUrl?: string | null
+  trackingEmailSentAt?: string | null
   paymentProvider?: string | null
   paymentMethod?: string | null
   subtotalCents?: number
@@ -274,6 +279,7 @@ function applyStatus(status: {
   shippingService.value = status.shippingService || ''
   trackingNumber.value = status.trackingNumber || ''
   trackingUrl.value = status.trackingUrl || ''
+  trackingEmailSentAt.value = status.trackingEmailSentAt || ''
   paymentProvider.value = status.paymentProvider || ''
   paymentMethod.value = status.paymentMethod || ''
   subtotalCents.value = Number(status.subtotalCents) || 0
@@ -299,6 +305,7 @@ async function loadStatus() {
     shippingService?: string | null
     trackingNumber?: string | null
     trackingUrl?: string | null
+    trackingEmailSentAt?: string | null
     paymentProvider?: string | null
     paymentMethod?: string | null
     subtotalCents?: number

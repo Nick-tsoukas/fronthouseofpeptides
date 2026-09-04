@@ -1,5 +1,5 @@
 <template>
-  <div class="px-4 pt-5 pb-6 sm:px-6 lg:p-8">
+  <div class="pt-2 pb-6">
     <div class="flex flex-col gap-4 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-white">Orders</h1>
@@ -209,10 +209,10 @@ const filters = [
   { value: 'all', label: 'All' },
   { value: 'needs_verification', label: 'Needs Payment Verification' },
   { value: 'awaiting_cashapp', label: 'Awaiting Cash App' },
-  { value: 'ready_to_ship', label: 'Ready to Ship' },
-  { value: 'label_purchased', label: 'Label Purchased' },
+  { value: 'ready_to_fulfill', label: 'Ready to Fulfill' },
+  { value: 'label_tracking_ready', label: 'Label/Tracking Ready' },
   { value: 'shipped', label: 'Shipped' },
-  { value: 'attention', label: 'Failed / Attention' },
+  { value: 'attention', label: 'Attention' },
 ]
 
 const formatCents = (cents: number) => `$${((Number(cents) || 0) / 100).toFixed(2)}`

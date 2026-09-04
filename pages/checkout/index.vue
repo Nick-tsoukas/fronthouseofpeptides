@@ -181,55 +181,19 @@
             </div>
           </div>
 
-          <!-- Purchaser Confirmations -->
+          <!-- Purchaser Confirmation -->
           <div class="bg-dark-900 rounded-xl border border-dark-700 p-6 space-y-4">
-            <h2 class="text-lg font-semibold text-white">Purchaser Confirmations <span class="text-red-400">*</span></h2>
+            <h2 class="text-lg font-semibold text-white">Purchaser Confirmation <span class="text-red-400">*</span></h2>
 
             <label class="flex items-start gap-3 cursor-pointer group">
               <input
                 type="checkbox"
-                v-model="form.ageConfirmed"
+                v-model="form.purchaserConfirmed"
                 :disabled="isBusy"
                 class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
               />
               <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
-                I confirm that I am at least 21 years old.
-              </span>
-            </label>
-
-            <label class="flex items-start gap-3 cursor-pointer group">
-              <input
-                type="checkbox"
-                v-model="form.researchUseConfirmed"
-                :disabled="isBusy"
-                class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
-              />
-              <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
-                I understand that these products are supplied exclusively for laboratory research and are not intended for human or veterinary use.
-              </span>
-            </label>
-
-            <label class="flex items-start gap-3 cursor-pointer group">
-              <input
-                type="checkbox"
-                v-model="form.qualifiedPurchaserConfirmed"
-                :disabled="isBusy"
-                class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
-              />
-              <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
-                I confirm that I am authorized and qualified to purchase and handle these materials for legitimate research purposes.
-              </span>
-            </label>
-
-            <label class="flex items-start gap-3 cursor-pointer group">
-              <input
-                type="checkbox"
-                v-model="form.termsAccepted"
-                :disabled="isBusy"
-                class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
-              />
-              <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
-                I have reviewed and agree to the
+                I confirm that I am at least 21 years old, understand these products are for laboratory research use only and not for human or animal consumption, and agree to the
                 <NuxtLink to="/terms" target="_blank" class="text-cyan-400 hover:text-cyan-300">Terms of Service</NuxtLink>,
                 <NuxtLink to="/privacy" target="_blank" class="text-cyan-400 hover:text-cyan-300">Privacy Policy</NuxtLink>,
                 <NuxtLink to="/shipping-policy" target="_blank" class="text-cyan-400 hover:text-cyan-300">Shipping Policy</NuxtLink>,
@@ -238,20 +202,8 @@
               </span>
             </label>
 
-            <label class="flex items-start gap-3 cursor-pointer group">
-              <input
-                type="checkbox"
-                v-model="form.verificationAcknowledged"
-                :disabled="isBusy"
-                class="mt-1 w-5 h-5 rounded border-dark-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-900 flex-shrink-0"
-              />
-              <span class="text-dark-300 group-hover:text-white transition-colors text-sm leading-relaxed">
-                I understand that an order may be refused or cancelled if the information provided cannot be verified.
-              </span>
-            </label>
-
             <p class="text-dark-400 text-xs leading-relaxed pt-1">
-              {{ ruoShort }}
+              For laboratory and research use only. Not for human or animal consumption. Not intended to diagnose, treat, cure, or prevent any disease.
               <NuxtLink to="/research-use-only" class="text-cyan-400 hover:text-cyan-300">Read the full policy</NuxtLink>
             </p>
           </div>
@@ -275,7 +227,7 @@
           </button>
 
           <p class="text-dark-500 text-xs text-center">
-            Shipping rates load automatically after you accept all confirmations. No charge and no shipping label on this step.
+            Shipping rates load automatically after you accept the purchaser confirmation. No charge and no shipping label on this step.
           </p>
 
           <!-- Shipping rates (inline) -->
@@ -434,13 +386,6 @@ import { reactive, ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useCartStore } from '~/stores/cart'
 import { CURRENCY } from '~/constants'
 
-const { data: storeSettings } = await usePublicStoreSettings()
-const ruoShort = computed(
-  () =>
-    storeSettings.value?.researchUseOnlyShortDisclaimer ||
-    'For laboratory and research use only. Not for human or animal consumption.'
-)
-
 interface ShippingRate {
   rateId: string
   carrier: string
@@ -495,24 +440,12 @@ const form = reactive({
   shippingState: '',
   shippingPostalCode: '',
   shippingCountry: 'US',
-  ageConfirmed: false,
-  researchUseConfirmed: false,
-  qualifiedPurchaserConfirmed: false,
-  termsAccepted: false,
-  verificationAcknowledged: false,
+  purchaserConfirmed: false,
 })
 
 const isBusy = computed(() => isPreparing.value || isLoadingRates.value || isSelectingRate.value)
 
-const allConfirmationsAccepted = computed(() => {
-  return (
-    form.ageConfirmed === true &&
-    form.researchUseConfirmed === true &&
-    form.qualifiedPurchaserConfirmed === true &&
-    form.termsAccepted === true &&
-    form.verificationAcknowledged === true
-  )
-})
+const allConfirmationsAccepted = computed(() => form.purchaserConfirmed === true)
 
 const canGetRates = computed(() => {
   return (
@@ -611,11 +544,7 @@ watch(
     form.shippingCity,
     form.shippingState,
     form.shippingPostalCode,
-    form.ageConfirmed,
-    form.researchUseConfirmed,
-    form.qualifiedPurchaserConfirmed,
-    form.termsAccepted,
-    form.verificationAcknowledged,
+    form.purchaserConfirmed,
   ],
   () => {
     // Changing contact/address after prepare means rates must be re-quoted on a fresh pending order.
@@ -676,11 +605,12 @@ async function prepareOrder() {
       shippingState: form.shippingState.trim(),
       shippingPostalCode: form.shippingPostalCode.trim(),
       shippingCountry: form.shippingCountry.trim().toUpperCase(),
-      ageConfirmed: form.ageConfirmed === true,
-      researchUseConfirmed: form.researchUseConfirmed === true,
-      qualifiedPurchaserConfirmed: form.qualifiedPurchaserConfirmed === true,
-      termsAccepted: form.termsAccepted === true,
-      verificationAcknowledged: form.verificationAcknowledged === true,
+      // Single UI checkbox maps to all compliance attestations required by prepare.
+      ageConfirmed: form.purchaserConfirmed === true,
+      researchUseConfirmed: form.purchaserConfirmed === true,
+      qualifiedPurchaserConfirmed: form.purchaserConfirmed === true,
+      termsAccepted: form.purchaserConfirmed === true,
+      verificationAcknowledged: form.purchaserConfirmed === true,
       idempotencyKey: idempotencyKey.value,
     },
   })

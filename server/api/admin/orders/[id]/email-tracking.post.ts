@@ -2,8 +2,21 @@ import { requireAdminAuth } from '~/server/utils/adminAuth'
 import { sendTrackingEmail } from '~/server/utils/sendOrderEmails'
 import { getEmailBrand } from '~/server/utils/storeSettings'
 
+function fallbackTrackingUrl(attrs: Record<string, any>): string {
+  const existing = String(attrs.trackingUrl || '').trim()
+  if (existing) return existing
+  const tn = encodeURIComponent(String(attrs.trackingNumber || '').trim())
+  if (!tn) return ''
+  const carrier = String(attrs.shippingCarrier || '').toUpperCase()
+  if (carrier.includes('USPS')) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${tn}`
+  if (carrier.includes('UPS')) return `https://www.ups.com/track?tracknum=${tn}`
+  if (carrier.includes('FEDEX')) return `https://www.fedex.com/fedextrack/?trknbr=${tn}`
+  return `https://www.google.com/search?q=${tn}+tracking`
+}
+
 /**
  * POST /api/admin/orders/:id/email-tracking
+ * Works for Shippo labels and manual tracking.
  */
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
@@ -31,17 +44,36 @@ export default defineEventHandler(async (event) => {
   if (!entry) throw createError({ statusCode: 404, message: 'Order not found.' })
   const attrs = entry.attributes || {}
 
+  if (attrs.paymentStatus !== 'paid') {
+    throw createError({ statusCode: 400, message: 'Order must be paid before emailing tracking.' })
+  }
   if (!attrs.email) {
     throw createError({ statusCode: 400, message: 'Customer email is missing.' })
   }
-  if (!attrs.trackingNumber || !attrs.trackingUrl) {
+  if (!attrs.trackingNumber) {
     throw createError({ statusCode: 400, message: 'Tracking is not available yet.' })
   }
-  if (!['label_purchased', 'shipped', 'in_transit'].includes(attrs.shippingStatus)) {
-    throw createError({
-      statusCode: 400,
-      message: 'Tracking email can only be sent after a label is purchased.',
-    })
+
+  const allowedStatuses = [
+    'label_purchased',
+    'manual_tracking_added',
+    'shipped',
+    'in_transit',
+    'delivered',
+  ]
+  if (attrs.shippingStatus && !allowedStatuses.includes(attrs.shippingStatus)) {
+    // Allow if tracking exists even if status naming differs on older schemas.
+    if (!attrs.trackingNumber) {
+      throw createError({
+        statusCode: 400,
+        message: 'Tracking email can only be sent after a label or manual tracking is added.',
+      })
+    }
+  }
+
+  const trackingUrl = fallbackTrackingUrl(attrs)
+  if (!trackingUrl) {
+    throw createError({ statusCode: 400, message: 'Tracking URL could not be determined.' })
   }
 
   const result = await sendTrackingEmail(
@@ -52,7 +84,7 @@ export default defineEventHandler(async (event) => {
       carrier: attrs.shippingCarrier || '',
       service: attrs.shippingService || '',
       trackingNumber: attrs.trackingNumber,
-      trackingUrl: attrs.trackingUrl,
+      trackingUrl,
     },
     {
       smtpHost: config.smtpHost as string,
@@ -72,17 +104,21 @@ export default defineEventHandler(async (event) => {
   }
 
   const trackingEmailSentAt = new Date().toISOString()
+  const patch: Record<string, any> = { trackingEmailSentAt }
+  if (!attrs.trackingUrl) patch.trackingUrl = trackingUrl
+
   await $fetch(`${strapiUrl}/api/orders/${entry.id}`, {
     method: 'PUT',
     headers,
-    body: { data: { trackingEmailSentAt } },
+    body: { data: patch },
   }).catch((err: any) => {
     console.error('Failed to save trackingEmailSentAt:', err?.message || err)
   })
 
   return {
     ok: true,
-    orderNumber: attrs.orderNumber || null,
     trackingEmailSentAt,
+    resent: Boolean(attrs.trackingEmailSentAt),
+    trackingUrl,
   }
 })

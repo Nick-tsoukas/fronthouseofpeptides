@@ -80,12 +80,18 @@ export default defineEventHandler(async (event) => {
     params.set('filters[$and][0][paymentStatus][$eq]', 'paid')
     params.set('filters[$and][1][shippingStatus][$notIn][0]', 'shipped')
     params.set('filters[$and][1][shippingStatus][$notIn][1]', 'delivered')
-  } else if (filter === 'ready_to_ship') {
+  } else if (filter === 'ready_to_ship' || filter === 'ready_to_fulfill') {
+    // Paid orders that still need a label or manual tracking
     params.set('filters[$and][0][paymentStatus][$eq]', 'paid')
-    params.set('filters[$and][1][$or][0][shippingStatus][$eq]', 'ready_to_ship')
-    params.set('filters[$and][1][$or][1][shippingStatus][$eq]', 'selected')
-  } else if (filter === 'label_purchased') {
-    params.set('filters[shippingStatus][$eq]', 'label_purchased')
+    params.set('filters[$and][1][shippingStatus][$notIn][0]', 'label_purchased')
+    params.set('filters[$and][1][shippingStatus][$notIn][1]', 'manual_tracking_added')
+    params.set('filters[$and][1][shippingStatus][$notIn][2]', 'shipped')
+    params.set('filters[$and][1][shippingStatus][$notIn][3]', 'in_transit')
+    params.set('filters[$and][1][shippingStatus][$notIn][4]', 'delivered')
+    params.set('filters[$and][1][shippingStatus][$notIn][5]', 'label_purchasing')
+  } else if (filter === 'label_purchased' || filter === 'label_tracking_ready') {
+    params.set('filters[$or][0][shippingStatus][$eq]', 'label_purchased')
+    params.set('filters[$or][1][shippingStatus][$eq]', 'manual_tracking_added')
   } else if (filter === 'failed') {
     params.set('filters[paymentStatus][$eq]', 'failed')
   } else if (filter === 'attention') {

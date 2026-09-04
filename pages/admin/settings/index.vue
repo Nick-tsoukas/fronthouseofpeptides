@@ -1,6 +1,6 @@
 <template>
-  <div class="p-4 sm:p-6 lg:p-8 pb-28 lg:pb-8">
-    <div class="mb-6">
+  <div class="pt-2 pb-28 lg:pb-8">
+    <div class="mb-6 mx-auto w-full max-w-3xl">
       <h1 class="text-2xl font-bold text-white">Store Settings</h1>
       <p class="text-dark-400 mt-1 text-sm">Identity, ship-from, policies, and environment status.</p>
     </div>
@@ -22,7 +22,7 @@
       <div v-for="i in 6" :key="i" class="h-16 rounded-xl bg-dark-900 border border-dark-700 animate-pulse" />
     </div>
 
-    <div v-else class="space-y-3 max-w-3xl">
+    <div v-else class="space-y-3 mx-auto w-full max-w-3xl">
       <section class="rounded-xl border border-dark-700 bg-dark-900 overflow-hidden">
         <button type="button" class="section-toggle" @click="toggle('identity')">
           <span>Store Identity</span>

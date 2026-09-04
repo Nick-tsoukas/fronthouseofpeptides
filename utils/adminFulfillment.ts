@@ -66,6 +66,8 @@ export function shippingLabel(status: string | null | undefined): string {
       return 'Generating label'
     case 'label_purchased':
       return 'Label purchased'
+    case 'manual_tracking_added':
+      return 'Manual tracking added'
     case 'shipped':
     case 'in_transit':
       return 'Shipped'
@@ -83,6 +85,7 @@ export function statusHeadline(order: OrderPaymentContext): string {
   const ship = shippingLabel(order.shippingStatus)
   if (order.paymentStatus !== 'paid') return pay
   if (order.shippingStatus === 'label_purchased') return 'Label Ready · Tracking Available'
+  if (order.shippingStatus === 'manual_tracking_added') return 'Tracking Ready · Manual Label'
   return `${pay} · ${ship}`
 }
 
@@ -103,9 +106,10 @@ export function fulfillmentBadge(order: OrderPaymentContext): {
   }
   if (ship === 'delivered') return { label: 'Delivered', kind: 'delivered' }
   if (ship === 'shipped' || ship === 'in_transit') return { label: 'Shipped', kind: 'shipped' }
+  if (ship === 'manual_tracking_added') return { label: 'Manual tracking added', kind: 'label' }
   if (ship === 'label_purchased') return { label: 'Label purchased', kind: 'label' }
   if (ship === 'label_purchasing') return { label: 'Generating label', kind: 'purchasing' }
-  if (pay === 'paid' && (ship === 'selected' || ship === 'ready_to_ship' || !ship)) {
+  if (pay === 'paid' && (ship === 'selected' || ship === 'ready_to_ship' || !ship || ship === 'not_quoted' || ship === 'quoted')) {
     return { label: 'Ready to ship', kind: 'ready' }
   }
   if (pay === 'paid') return { label: 'Paid', kind: 'paid' }
@@ -131,9 +135,13 @@ export function nextActionHint(order: OrderPaymentContext): string {
   if (pay !== 'paid') return 'Waiting for payment'
   if (ship === 'label_failed') return 'Retry label purchase'
   if (ship === 'label_purchasing') return 'Refresh label status'
-  if (ship === 'label_purchased') return 'Print label · Mark shipped'
-  if (ship === 'shipped' || ship === 'in_transit' || ship === 'delivered') return 'Shipped'
-  if (ship === 'selected' || ship === 'ready_to_ship' || !ship) return 'Buy shipping label'
+  if (ship === 'label_purchased' || ship === 'manual_tracking_added') {
+    return 'Email tracking / mark shipped'
+  }
+  if (ship === 'shipped' || ship === 'in_transit' || ship === 'delivered') return 'Tracking available'
+  if (ship === 'selected' || ship === 'ready_to_ship' || !ship || ship === 'not_quoted' || ship === 'quoted') {
+    return 'Buy label or add tracking'
+  }
   return 'View order'
 }
 

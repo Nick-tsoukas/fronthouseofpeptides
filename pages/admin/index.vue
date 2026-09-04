@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 lg:p-8">
+  <div class="pt-2 pb-6">
     <div class="mb-8">
       <h1 class="text-2xl font-bold text-white">Dashboard</h1>
       <p class="text-dark-400 mt-1">Welcome to the Quantum Bio Peptides admin panel</p>

@@ -489,6 +489,7 @@ function buildTrackingEmailHtml(data: {
         </a>
       </p>
       <p style="margin:24px 0 0;font-size:12px;color:#6b7280;">Questions? ${escapeHtml(supportEmail)}</p>
+      <p style="margin:8px 0 0;font-size:11px;color:#6b7280;">For laboratory and research use only. Not for human or animal consumption.</p>
     </div>
   </div>`
 }
