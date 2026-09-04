@@ -45,11 +45,11 @@ export function usePwaInstall(kind: 'admin' | 'store' = 'admin') {
 
     window.addEventListener('beforeinstallprompt', (event) => {
       event.preventDefault()
-      const ev = event as BeforeInstallPromptEvent
+      // Owner PWA only — never surface install UI on the customer storefront/checkout.
       if (window.location.pathname.startsWith('/admin')) {
-        adminPrompt.value = ev
+        adminPrompt.value = event as BeforeInstallPromptEvent
       } else {
-        storePrompt.value = ev
+        storePrompt.value = null
       }
     })
 

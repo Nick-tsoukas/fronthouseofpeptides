@@ -13,7 +13,6 @@
     <TheFooter />
     <CartDrawer />
     <ComplianceModal />
-    <PwaInstallBanner />
   </div>
 </template>
 
@@ -27,11 +26,8 @@ const banner = computed(() => {
 
 useHead({
   meta: [
-    { name: 'apple-mobile-web-app-title', content: 'QBP' },
-    { name: 'application-name', content: 'QBP' },
-  ],
-  link: [
-    { rel: 'manifest', href: '/manifest.webmanifest' },
+    { name: 'apple-mobile-web-app-title', content: 'Quantum Bio Peptides' },
+    { name: 'application-name', content: 'Quantum Bio Peptides' },
   ],
 })
 </script>
