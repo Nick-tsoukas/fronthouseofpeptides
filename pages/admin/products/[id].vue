@@ -202,25 +202,31 @@
                 />
               </div>
               <div>
-                <label class="block text-xs font-medium text-dark-400 mb-1">Price ($) *</label>
-                <input
-                  v-model.number="variant.price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  placeholder="39.99"
-                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white text-sm placeholder-dark-500 focus:outline-none focus:border-cyan-500 transition-colors"
-                />
+                <label class="block text-xs font-medium text-cyan-300/90 mb-1">Price (USD) *</label>
+                <div class="relative">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm">$</span>
+                  <input
+                    :value="variant.price ?? ''"
+                    type="text"
+                    inputmode="decimal"
+                    required
+                    placeholder="39.99"
+                    autocomplete="off"
+                    class="w-full min-h-[48px] pl-7 pr-3 py-2 bg-dark-700 border border-cyan-500/30 rounded-lg text-white text-base placeholder-dark-500 focus:outline-none focus:border-cyan-500"
+                    @input="onPriceInput(variant, ($event.target as HTMLInputElement).value)"
+                  />
+                </div>
               </div>
               <div>
                 <label class="block text-xs font-medium text-dark-400 mb-1">Inventory</label>
                 <input
-                  v-model.number="variant.inventory"
-                  type="number"
-                  min="0"
+                  :value="variant.inventory ?? ''"
+                  type="text"
+                  inputmode="numeric"
                   placeholder="100"
-                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white text-sm placeholder-dark-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                  autocomplete="off"
+                  class="w-full min-h-[48px] px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white text-base placeholder-dark-500 focus:outline-none focus:border-cyan-500"
+                  @input="onInventoryInput(variant, ($event.target as HTMLInputElement).value)"
                 />
               </div>
             </div>
@@ -367,6 +373,26 @@ const addVariant = () => {
   })
 }
 
+function onPriceInput(variant: VariantForm, raw: string) {
+  const cleaned = String(raw ?? '').trim().replace(/[^0-9.]/g, '')
+  if (!cleaned) {
+    variant.price = null
+    return
+  }
+  const n = Number(cleaned)
+  variant.price = Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null
+}
+
+function onInventoryInput(variant: VariantForm, raw: string) {
+  const cleaned = String(raw ?? '').trim()
+  if (!cleaned) {
+    variant.inventory = null
+    return
+  }
+  const n = Number.parseInt(cleaned, 10)
+  variant.inventory = Number.isFinite(n) && n >= 0 ? n : null
+}
+
 const removeVariant = (index: number) => {
   const variant = form.value.variants[index]
   if (variant.id) {
@@ -387,8 +413,12 @@ const handleSubmit = async () => {
   }
 
   for (const variant of form.value.variants) {
-    if (!variant.name.trim() || !variant.sku.trim() || variant.price === null) {
-      error.value = 'All variant fields (name, SKU, price) are required'
+    if (!variant.name.trim() || !variant.sku.trim()) {
+      error.value = 'All variant fields (name, SKU) are required'
+      return
+    }
+    if (variant.price === null || variant.price === undefined || Number.isNaN(Number(variant.price))) {
+      error.value = 'Each variant needs a valid price (example: 39.99).'
       return
     }
   }
