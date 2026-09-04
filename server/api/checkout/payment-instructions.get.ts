@@ -1,6 +1,10 @@
 import { validateCheckoutSession } from '~/server/utils/checkout-session'
 import { fetchStoreSettings } from '~/server/utils/storeSettings'
-import { isCashAppConfigured } from '~/utils/storeSettings'
+import {
+  isCashAppConfigured,
+  cashAppPaymentUrlFromCashtag,
+  normalizeCashAppCashtag,
+} from '~/utils/storeSettings'
 
 /**
  * GET /api/checkout/payment-instructions?orderId=
@@ -42,6 +46,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const configured = isCashAppConfigured(settings)
+  const cashtag = normalizeCashAppCashtag(settings.cashAppCashtag)
+  const paymentUrl =
+    (settings.cashAppPaymentUrl || '').trim() || cashAppPaymentUrlFromCashtag(cashtag)
   const totalCents =
     Number(attrs.totalCents) >= 0
       ? Number(attrs.totalCents)
@@ -62,9 +69,9 @@ export default defineEventHandler(async (event) => {
       ? null
       : 'Cash App payment details are not configured yet. Please contact support — do not send payment until instructions are available.',
     cashApp: {
-      cashtag: configured ? settings.cashAppCashtag : '',
+      cashtag: configured ? cashtag : '',
       displayName: configured ? settings.cashAppDisplayName : '',
-      paymentUrl: configured ? settings.cashAppPaymentUrl || '' : '',
+      paymentUrl: configured ? paymentUrl : '',
       qrImageUrl: configured ? settings.cashAppQrImageUrl || '' : '',
     },
     supportEmail:

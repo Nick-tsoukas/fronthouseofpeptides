@@ -152,9 +152,9 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   announcementBannerEnabled: false,
   paymentMode: 'cashapp_manual',
   cashAppEnabled: true,
-  cashAppCashtag: '',
-  cashAppDisplayName: '',
-  cashAppPaymentUrl: '',
+  cashAppCashtag: '$ToneCaponeDaGod',
+  cashAppDisplayName: 'Quantum Bio Peptides',
+  cashAppPaymentUrl: 'https://cash.app/$ToneCaponeDaGod',
   cashAppQrImageUrl: '',
   manualPaymentExpirationHours: 48,
   manualPaymentSupportEmail: '',
@@ -302,4 +302,33 @@ export function normalizeSocialLinks(raw: unknown): StoreSocialLinks {
   if (pick('twitter')) out.twitter = pick('twitter')
   if (pick('facebook')) out.facebook = pick('facebook')
   return out
+}
+
+/** Normalize "$Tag" / "Tag" → "$Tag" */
+export function normalizeCashAppCashtag(raw: unknown): string {
+  const cleaned = String(raw ?? '')
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/^cash\.app\//i, '')
+    .replace(/^https?:\/\/(www\.)?cash\.app\//i, '')
+  if (!cleaned) return ''
+  const withoutAt = cleaned.startsWith('@') ? cleaned.slice(1) : cleaned
+  const tag = withoutAt.startsWith('$') ? withoutAt.slice(1) : withoutAt
+  if (!tag) return ''
+  return `$${tag}`
+}
+
+/** https://cash.app/$Cashtag from a cashtag */
+export function cashAppPaymentUrlFromCashtag(cashtag: unknown): string {
+  const normalized = normalizeCashAppCashtag(cashtag)
+  if (!normalized) return ''
+  return `https://cash.app/${normalized}`
+}
+
+export function isAutoCashAppPaymentUrl(url: unknown, cashtag: unknown): boolean {
+  const u = String(url ?? '').trim()
+  if (!u) return true
+  const expected = cashAppPaymentUrlFromCashtag(cashtag)
+  if (!expected) return false
+  return u.replace(/\/$/, '').toLowerCase() === expected.toLowerCase()
 }

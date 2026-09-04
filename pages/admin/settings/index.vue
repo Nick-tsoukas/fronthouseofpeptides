@@ -297,7 +297,14 @@
           </label>
           <label class="field">
             <span>Cash App cashtag</span>
-            <input v-model="form.cashAppCashtag" type="text" class="input" placeholder="$YourTag" />
+            <input
+              v-model="form.cashAppCashtag"
+              type="text"
+              class="input"
+              placeholder="$YourTag"
+              @blur="onCashtagBlur"
+              @change="onCashtagBlur"
+            />
           </label>
           <label class="field">
             <span>Cash App display name</span>
@@ -305,7 +312,14 @@
           </label>
           <label class="field">
             <span>Cash App payment URL</span>
-            <input v-model="form.cashAppPaymentUrl" type="url" class="input" inputmode="url" placeholder="https://cash.app/$YourTag" />
+            <input
+              v-model="form.cashAppPaymentUrl"
+              type="url"
+              class="input"
+              inputmode="url"
+              placeholder="Auto from cashtag"
+            />
+            <span class="text-dark-500 text-xs mt-1">Auto-filled from cashtag as https://cash.app/$YourTag — override only if needed.</span>
           </label>
           <label class="field">
             <span>Cash App QR image URL</span>
@@ -450,7 +464,14 @@
 
 <script setup lang="ts">
 import { useAdmin } from '~/composables/useAdmin'
-import { DEFAULT_STORE_SETTINGS, type StoreSettings, type StoreSocialLinks } from '~/utils/storeSettings'
+import {
+  DEFAULT_STORE_SETTINGS,
+  type StoreSettings,
+  type StoreSocialLinks,
+  normalizeCashAppCashtag,
+  cashAppPaymentUrlFromCashtag,
+  isAutoCashAppPaymentUrl,
+} from '~/utils/storeSettings'
 
 definePageMeta({
   layout: 'admin',
@@ -504,6 +525,15 @@ const paymentWarnings = computed(() => {
 function applySettings(next: StoreSettings) {
   Object.assign(form, next)
   form.socialLinks = { ...(next.socialLinks || {}) } as StoreSocialLinks
+  onCashtagBlur()
+}
+
+function onCashtagBlur() {
+  const normalized = normalizeCashAppCashtag(form.cashAppCashtag)
+  if (normalized) form.cashAppCashtag = normalized
+  if (!form.cashAppPaymentUrl || isAutoCashAppPaymentUrl(form.cashAppPaymentUrl, form.cashAppCashtag)) {
+    form.cashAppPaymentUrl = cashAppPaymentUrlFromCashtag(form.cashAppCashtag)
+  }
 }
 
 async function loadSettings() {
@@ -528,6 +558,7 @@ const saveSettings = async () => {
   error.value = ''
   success.value = ''
   saving.value = true
+  onCashtagBlur()
   try {
     const res = await $fetch<{ ok: boolean; settings: StoreSettings }>('/api/admin/settings', {
       method: 'PUT',

@@ -2,11 +2,31 @@ import type { H3Event } from 'h3'
 import {
   DEFAULT_STORE_SETTINGS,
   normalizeSocialLinks,
+  normalizeCashAppCashtag,
+  cashAppPaymentUrlFromCashtag,
+  isAutoCashAppPaymentUrl,
   type StoreSettings,
 } from '~/utils/storeSettings'
 
 let cache: { at: number; data: StoreSettings; persisted: boolean } | null = null
 const CACHE_MS = 15_000
+
+/** Hidden JSON bag inside socialLinks so payment settings persist even before Strapi schema redeploy. */
+const PAYMENT_BACKUP_KEY = '_qbpPayment'
+
+type PaymentBackup = {
+  paymentMode?: StoreSettings['paymentMode']
+  cashAppEnabled?: boolean
+  cashAppCashtag?: string
+  cashAppDisplayName?: string
+  cashAppPaymentUrl?: string
+  cashAppQrImageUrl?: string
+  manualPaymentExpirationHours?: number
+  manualPaymentSupportEmail?: string
+  zelleEnabled?: boolean
+  zelleHandle?: string
+  zelleDisplayName?: string
+}
 
 export function invalidateStoreSettingsCache() {
   cache = null
@@ -24,8 +44,89 @@ function numStr(value: unknown, fallback: string): string {
   return String(n)
 }
 
+function readPaymentBackup(rawSocial: unknown): PaymentBackup {
+  if (!rawSocial || typeof rawSocial !== 'object') return {}
+  const bag = (rawSocial as Record<string, unknown>)[PAYMENT_BACKUP_KEY]
+  if (!bag || typeof bag !== 'object') return {}
+  return bag as PaymentBackup
+}
+
+function buildPaymentFields(
+  primary: Record<string, any>,
+  backup: PaymentBackup = {}
+): Pick<
+  StoreSettings,
+  | 'paymentMode'
+  | 'cashAppEnabled'
+  | 'cashAppCashtag'
+  | 'cashAppDisplayName'
+  | 'cashAppPaymentUrl'
+  | 'cashAppQrImageUrl'
+  | 'manualPaymentExpirationHours'
+  | 'manualPaymentSupportEmail'
+  | 'zelleEnabled'
+  | 'zelleHandle'
+  | 'zelleDisplayName'
+> {
+  const cashtag =
+    normalizeCashAppCashtag(primary.cashAppCashtag) ||
+    normalizeCashAppCashtag(backup.cashAppCashtag) ||
+    DEFAULT_STORE_SETTINGS.cashAppCashtag
+
+  let paymentUrl =
+    str(primary.cashAppPaymentUrl) ||
+    str(backup.cashAppPaymentUrl) ||
+    ''
+  if (!paymentUrl || isAutoCashAppPaymentUrl(paymentUrl, cashtag)) {
+    paymentUrl = cashAppPaymentUrlFromCashtag(cashtag)
+  }
+
+  const modeRaw = primary.paymentMode ?? backup.paymentMode
+  const paymentMode = (
+    ['cashapp_manual', 'moov', 'manual_multi', 'disabled'].includes(String(modeRaw))
+      ? String(modeRaw)
+      : DEFAULT_STORE_SETTINGS.paymentMode
+  ) as StoreSettings['paymentMode']
+
+  const enabledPrimary = primary.cashAppEnabled
+  const enabledBackup = backup.cashAppEnabled
+
+  return {
+    paymentMode,
+    cashAppEnabled:
+      enabledPrimary !== undefined && enabledPrimary !== null
+        ? Boolean(enabledPrimary)
+        : enabledBackup !== undefined && enabledBackup !== null
+          ? Boolean(enabledBackup)
+          : DEFAULT_STORE_SETTINGS.cashAppEnabled,
+    cashAppCashtag: cashtag,
+    cashAppDisplayName:
+      str(primary.cashAppDisplayName) ||
+      str(backup.cashAppDisplayName) ||
+      DEFAULT_STORE_SETTINGS.cashAppDisplayName,
+    cashAppPaymentUrl: paymentUrl,
+    cashAppQrImageUrl: str(primary.cashAppQrImageUrl) || str(backup.cashAppQrImageUrl),
+    manualPaymentExpirationHours: Math.max(
+      1,
+      Number(primary.manualPaymentExpirationHours) ||
+        Number(backup.manualPaymentExpirationHours) ||
+        DEFAULT_STORE_SETTINGS.manualPaymentExpirationHours
+    ),
+    manualPaymentSupportEmail:
+      str(primary.manualPaymentSupportEmail) || str(backup.manualPaymentSupportEmail),
+    zelleEnabled: Boolean(
+      primary.zelleEnabled !== undefined ? primary.zelleEnabled : backup.zelleEnabled
+    ),
+    zelleHandle: str(primary.zelleHandle) || str(backup.zelleHandle),
+    zelleDisplayName: str(primary.zelleDisplayName) || str(backup.zelleDisplayName),
+  }
+}
+
 function mapStrapiAttributes(attrs: Record<string, any> | null | undefined, updatedAt?: string | null): StoreSettings {
   const a = attrs || {}
+  const backup = readPaymentBackup(a.socialLinks)
+  const payment = buildPaymentFields(a, backup)
+
   return {
     storeName: str(a.storeName, DEFAULT_STORE_SETTINGS.storeName) || DEFAULT_STORE_SETTINGS.storeName,
     legalBusinessName: str(a.legalBusinessName),
@@ -70,22 +171,7 @@ function mapStrapiAttributes(attrs: Record<string, any> | null | undefined, upda
     socialLinks: normalizeSocialLinks(a.socialLinks),
     announcementBanner: str(a.announcementBanner),
     announcementBannerEnabled: Boolean(a.announcementBannerEnabled),
-    paymentMode: (['cashapp_manual', 'moov', 'manual_multi', 'disabled'].includes(String(a.paymentMode))
-      ? String(a.paymentMode)
-      : DEFAULT_STORE_SETTINGS.paymentMode) as StoreSettings['paymentMode'],
-    cashAppEnabled: a.cashAppEnabled !== false,
-    cashAppCashtag: str(a.cashAppCashtag),
-    cashAppDisplayName: str(a.cashAppDisplayName),
-    cashAppPaymentUrl: str(a.cashAppPaymentUrl),
-    cashAppQrImageUrl: str(a.cashAppQrImageUrl),
-    manualPaymentExpirationHours: Math.max(
-      1,
-      Number(a.manualPaymentExpirationHours) || DEFAULT_STORE_SETTINGS.manualPaymentExpirationHours
-    ),
-    manualPaymentSupportEmail: str(a.manualPaymentSupportEmail),
-    zelleEnabled: Boolean(a.zelleEnabled),
-    zelleHandle: str(a.zelleHandle),
-    zelleDisplayName: str(a.zelleDisplayName),
+    ...payment,
     updatedAt: updatedAt || str(a.updatedAt) || null,
   }
 }
@@ -138,9 +224,42 @@ export async function fetchStoreSettings(
   }
 }
 
-export function settingsToStrapiData(body: Partial<StoreSettings>): Record<string, any> {
-  const social = normalizeSocialLinks(body.socialLinks)
+function paymentBackupFromBody(body: Partial<StoreSettings>): PaymentBackup {
+  const cashtag = normalizeCashAppCashtag(body.cashAppCashtag) || DEFAULT_STORE_SETTINGS.cashAppCashtag
+  let paymentUrl = str(body.cashAppPaymentUrl)
+  if (!paymentUrl || isAutoCashAppPaymentUrl(paymentUrl, cashtag)) {
+    paymentUrl = cashAppPaymentUrlFromCashtag(cashtag)
+  }
   return {
+    paymentMode: (['cashapp_manual', 'moov', 'manual_multi', 'disabled'].includes(String(body.paymentMode))
+      ? (String(body.paymentMode) as StoreSettings['paymentMode'])
+      : DEFAULT_STORE_SETTINGS.paymentMode),
+    cashAppEnabled: body.cashAppEnabled !== false,
+    cashAppCashtag: cashtag,
+    cashAppDisplayName: str(body.cashAppDisplayName) || DEFAULT_STORE_SETTINGS.cashAppDisplayName,
+    cashAppPaymentUrl: paymentUrl,
+    cashAppQrImageUrl: str(body.cashAppQrImageUrl),
+    manualPaymentExpirationHours: Math.max(
+      1,
+      Number(body.manualPaymentExpirationHours) || DEFAULT_STORE_SETTINGS.manualPaymentExpirationHours
+    ),
+    manualPaymentSupportEmail: str(body.manualPaymentSupportEmail),
+    zelleEnabled: Boolean(body.zelleEnabled),
+    zelleHandle: str(body.zelleHandle),
+    zelleDisplayName: str(body.zelleDisplayName),
+  }
+}
+
+export function settingsToStrapiData(
+  body: Partial<StoreSettings>,
+  opts?: { includeNativePaymentFields?: boolean }
+): Record<string, any> {
+  const includeNative = opts?.includeNativePaymentFields !== false
+  const social = normalizeSocialLinks(body.socialLinks) as Record<string, unknown>
+  const payment = paymentBackupFromBody(body)
+  social[PAYMENT_BACKUP_KEY] = payment
+
+  const base: Record<string, any> = {
     storeName: str(body.storeName, DEFAULT_STORE_SETTINGS.storeName),
     legalBusinessName: str(body.legalBusinessName),
     dbaName: str(body.dbaName),
@@ -189,38 +308,66 @@ export function settingsToStrapiData(body: Partial<StoreSettings>): Record<strin
     socialLinks: social,
     announcementBanner: str(body.announcementBanner),
     announcementBannerEnabled: Boolean(body.announcementBannerEnabled),
-    paymentMode: (['cashapp_manual', 'moov', 'manual_multi', 'disabled'].includes(String(body.paymentMode))
-      ? String(body.paymentMode)
-      : DEFAULT_STORE_SETTINGS.paymentMode),
-    cashAppEnabled: body.cashAppEnabled !== false,
-    cashAppCashtag: str(body.cashAppCashtag),
-    cashAppDisplayName: str(body.cashAppDisplayName),
-    cashAppPaymentUrl: str(body.cashAppPaymentUrl),
-    cashAppQrImageUrl: str(body.cashAppQrImageUrl),
-    manualPaymentExpirationHours: Math.max(
-      1,
-      Number(body.manualPaymentExpirationHours) || DEFAULT_STORE_SETTINGS.manualPaymentExpirationHours
-    ),
-    manualPaymentSupportEmail: str(body.manualPaymentSupportEmail),
-    zelleEnabled: Boolean(body.zelleEnabled),
-    zelleHandle: str(body.zelleHandle),
-    zelleDisplayName: str(body.zelleDisplayName),
   }
+
+  if (includeNative) {
+    Object.assign(base, {
+      paymentMode: payment.paymentMode,
+      cashAppEnabled: payment.cashAppEnabled,
+      cashAppCashtag: payment.cashAppCashtag,
+      cashAppDisplayName: payment.cashAppDisplayName,
+      cashAppPaymentUrl: payment.cashAppPaymentUrl,
+      cashAppQrImageUrl: payment.cashAppQrImageUrl,
+      manualPaymentExpirationHours: payment.manualPaymentExpirationHours,
+      manualPaymentSupportEmail: payment.manualPaymentSupportEmail,
+      zelleEnabled: payment.zelleEnabled,
+      zelleHandle: payment.zelleHandle,
+      zelleDisplayName: payment.zelleDisplayName,
+    })
+  }
+
+  return base
+}
+
+async function putStoreSetting(
+  strapiUrl: string,
+  headers: Record<string, string>,
+  data: Record<string, any>
+) {
+  return $fetch<{ data?: any }>(`${strapiUrl}/api/store-setting`, {
+    method: 'PUT',
+    headers,
+    body: { data },
+  })
 }
 
 export async function saveStoreSettings(event: H3Event, body: Partial<StoreSettings>): Promise<StoreSettings> {
   const { strapiUrl, headers } = strapiHeaders(event)
-  const payload = { data: settingsToStrapiData(body) }
+  const fullPayload = settingsToStrapiData(body, { includeNativePaymentFields: true })
+  const backupOnlyPayload = settingsToStrapiData(body, { includeNativePaymentFields: false })
 
   try {
-    const res = await $fetch<{ data?: any }>(`${strapiUrl}/api/store-setting`, {
-      method: 'PUT',
-      headers,
-      body: payload,
-    })
+    let res: { data?: any }
+    try {
+      res = await putStoreSetting(strapiUrl, headers, fullPayload)
+    } catch (err: any) {
+      const status = err?.statusCode || err?.status || err?.response?.status
+      // Production Strapi may not have payment columns yet — persist via socialLinks JSON backup.
+      if (status === 400 || status === 500) {
+        console.warn('[store-settings] native payment fields rejected; saving via socialLinks backup')
+        res = await putStoreSetting(strapiUrl, headers, backupOnlyPayload)
+      } else {
+        throw err
+      }
+    }
+
     const data = res?.data
-    const attrs = data?.attributes || data || payload.data
-    const settings = mapStrapiAttributes(attrs, data?.updatedAt || attrs?.updatedAt || new Date().toISOString())
+    const attrs = data?.attributes || data || backupOnlyPayload
+    // Merge request payment values in case Strapi response omits backup keys briefly
+    const settings = mapStrapiAttributes(
+      { ...attrs, ...paymentBackupFromBody(body), socialLinks: attrs.socialLinks || backupOnlyPayload.socialLinks },
+      data?.updatedAt || attrs?.updatedAt || new Date().toISOString()
+    )
     cache = { at: Date.now(), data: settings, persisted: true }
     return settings
   } catch (err: any) {
@@ -229,8 +376,8 @@ export async function saveStoreSettings(event: H3Event, body: Partial<StoreSetti
       const created = await $fetch<{ data?: any }>(`${strapiUrl}/api/store-setting`, {
         method: 'POST',
         headers,
-        body: payload,
-      }).catch((createErr: any) => {
+        body: { data: backupOnlyPayload },
+      }).catch(() => {
         throw createError({
           statusCode: 503,
           message:
@@ -238,8 +385,11 @@ export async function saveStoreSettings(event: H3Event, body: Partial<StoreSetti
         })
       })
       const data = created?.data
-      const attrs = data?.attributes || data || payload.data
-      const settings = mapStrapiAttributes(attrs, data?.updatedAt || attrs?.updatedAt || new Date().toISOString())
+      const attrs = data?.attributes || data || backupOnlyPayload
+      const settings = mapStrapiAttributes(
+        { ...attrs, ...paymentBackupFromBody(body), socialLinks: attrs.socialLinks || backupOnlyPayload.socialLinks },
+        data?.updatedAt || attrs?.updatedAt || new Date().toISOString()
+      )
       cache = { at: Date.now(), data: settings, persisted: true }
       return settings
     }
