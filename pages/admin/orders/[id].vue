@@ -1048,7 +1048,7 @@ const buyLabelButtonLabel = computed(() => {
 const emailTrackingLabel = computed(() => {
   if (actionLoading.value === 'email') return 'Sending…'
   if (order.value?.trackingEmailSentAt) return 'Re-send Tracking Email'
-  return 'Email Tracking to Customer'
+  return 'Email Tracking'
 })
 
 const stickyPrimary = computed(() => {
@@ -1146,14 +1146,15 @@ const canBuyLabel = computed(() => !buyLabelBlockedReason.value)
 
 const canEmailTracking = computed(() => {
   if (!order.value) return false
-  return Boolean(order.value.trackingNumber && order.value.email)
+  if (order.value.paymentStatus !== 'paid') return false
+  return Boolean((order.value.trackingNumber || order.value.trackingUrl) && order.value.email)
 })
 
 const canMarkShipped = computed(() => {
   if (!order.value) return false
   return (
     order.value.paymentStatus === 'paid' &&
-    Boolean(order.value.trackingNumber) &&
+    Boolean(order.value.trackingNumber || order.value.trackingUrl) &&
     order.value.shippingStatus !== 'shipped' &&
     order.value.shippingStatus !== 'delivered'
   )
@@ -1541,13 +1542,22 @@ async function markShipped() {
   if (!requireOnline()) return
   actionLoading.value = 'ship'
   try {
-    await $fetch(`/api/admin/orders/${orderId.value}/mark-shipped`, {
+    const res = await $fetch<{
+      ok?: boolean
+      message?: string
+      trackingEmailSent?: boolean
+      trackingEmailError?: string | null
+    }>(`/api/admin/orders/${orderId.value}/mark-shipped`, {
       method: 'POST',
       credentials: 'include',
     })
     shipConfirm.value = false
     await refreshOrder()
-    showToast('success', 'Order marked as shipped.')
+    if (res?.trackingEmailError) {
+      showToast('error', res.message || `Shipped, but tracking email failed: ${res.trackingEmailError}`)
+    } else {
+      showToast('success', res?.message || 'Order marked as shipped.')
+    }
   } catch (err: any) {
     showToast('error', err.data?.message || err.message || 'Could not mark as shipped.')
   } finally {

@@ -142,15 +142,21 @@
             >
               Open tracking
             </a>
+            <p
+              v-if="isShipped"
+              class="text-emerald-400/90 text-sm leading-relaxed pt-1"
+            >
+              Your order has shipped. Tracking was emailed to you.
+            </p>
+            <p
+              v-else-if="trackingEmailSentAt"
+              class="text-emerald-400/90 text-xs"
+            >
+              Tracking email sent.
+            </p>
           </template>
           <p v-else class="text-dark-300 leading-relaxed">
             Tracking is not available yet. We’ll email it when your order ships.
-          </p>
-          <p
-            v-if="trackingEmailSentAt && (trackingNumber || trackingUrl)"
-            class="text-emerald-400/90 text-xs"
-          >
-            Tracking email sent.
           </p>
         </div>
 
@@ -239,6 +245,10 @@ let autoPollAttempts = 0
 
 const isTestMode = computed(() => (config.public.moovMode as string || 'test') === 'test')
 const isPaid = computed(() => paymentStatus.value === 'paid')
+const isShipped = computed(() => {
+  const s = String(shippingStatus.value || '').toLowerCase()
+  return s === 'shipped' || s === 'in_transit' || s === 'delivered'
+})
 const isCashApp = computed(() => {
   const provider = String(paymentProvider.value || '').toLowerCase()
   const method = String(paymentMethod.value || '').toLowerCase()

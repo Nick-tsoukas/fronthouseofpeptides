@@ -1,8 +1,13 @@
 import { requireAdminAuth } from '~/server/utils/adminAuth'
+import {
+  hasTrackingInfo,
+  sendAndRecordTrackingEmail,
+} from '~/server/utils/orderTrackingEmail'
 
 /**
  * POST /api/admin/orders/:id/mark-shipped
- * Works for Shippo labels and manual tracking. Does not buy labels or touch inventory.
+ * Works for Shippo labels and manual tracking.
+ * Auto-sends tracking email once if not already sent.
  */
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
@@ -37,63 +42,83 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Cannot mark a cancelled/refunded order shipped.' })
   }
 
-  const hasTracking = Boolean(String(attrs.trackingNumber || '').trim())
-  const hasShippoLabel = Boolean(attrs.shippoTransactionId || attrs.shippingLabelUrl)
-  const hasManual =
-    attrs.fulfillmentMethod === 'manual_label' ||
-    attrs.shippingStatus === 'manual_tracking_added' ||
-    (hasTracking && !attrs.shippoTransactionId)
-
-  if (!hasTracking && !hasShippoLabel && !hasManual) {
+  if (!hasTrackingInfo(attrs)) {
     throw createError({
       statusCode: 400,
       message: 'Add tracking or buy a label before marking this order shipped.',
     })
   }
-  if (!hasTracking) {
-    throw createError({
-      statusCode: 400,
-      message: 'Tracking number is required before marking as shipped.',
+
+  const alreadyShipped =
+    attrs.shippingStatus === 'shipped' || attrs.shippingStatus === 'delivered'
+
+  let shippedAt = attrs.shippedAt || null
+
+  if (!alreadyShipped) {
+    shippedAt = new Date().toISOString()
+    await $fetch(`${strapiUrl}/api/orders/${entry.id}`, {
+      method: 'PUT',
+      headers,
+      body: {
+        data: {
+          shippingStatus: 'shipped',
+          shippedAt,
+          status:
+            attrs.status === 'approved' ||
+            attrs.status === 'awaiting_payment' ||
+            attrs.status === 'paid'
+              ? 'fulfilled'
+              : attrs.status,
+        },
+      },
+    }).catch(() => {
+      throw createError({ statusCode: 502, message: 'Could not update order shipping status.' })
     })
   }
 
-  if (attrs.shippingStatus === 'shipped' || attrs.shippingStatus === 'delivered') {
-    return {
-      ok: true,
-      alreadyShipped: true,
-      orderNumber: attrs.orderNumber || null,
-      shippingStatus: attrs.shippingStatus,
-      shippedAt: attrs.shippedAt || null,
-      trackingNumber: attrs.trackingNumber,
-      trackingUrl: attrs.trackingUrl || null,
-      message: 'Order was already marked shipped.',
-    }
-  }
+  // Auto-email tracking once (Shippo or manual). Skip if already sent.
+  let trackingEmailSentAt = attrs.trackingEmailSentAt || null
+  let trackingEmailSent = false
+  let trackingEmailSkipped = Boolean(attrs.trackingEmailSentAt)
+  let trackingEmailError: string | undefined
 
-  const shippedAt = new Date().toISOString()
-  await $fetch(`${strapiUrl}/api/orders/${entry.id}`, {
-    method: 'PUT',
-    headers,
-    body: {
-      data: {
-        shippingStatus: 'shipped',
-        shippedAt,
-        status:
-          attrs.status === 'approved' || attrs.status === 'awaiting_payment' || attrs.status === 'paid'
-            ? 'fulfilled'
-            : attrs.status,
-      },
-    },
-  }).catch(() => {
-    throw createError({ statusCode: 502, message: 'Could not update order shipping status.' })
-  })
+  if (!attrs.trackingEmailSentAt) {
+    const emailResult = await sendAndRecordTrackingEmail({
+      event,
+      strapiUrl,
+      headers,
+      orderId: entry.id,
+      attrs,
+      forceResend: false,
+    })
+    trackingEmailSent = emailResult.sent
+    trackingEmailSkipped = emailResult.skipped
+    trackingEmailSentAt = emailResult.trackingEmailSentAt
+    trackingEmailError = emailResult.error
+  }
 
   return {
     ok: true,
+    alreadyShipped,
     orderNumber: attrs.orderNumber || null,
-    shippingStatus: 'shipped',
+    shippingStatus: alreadyShipped ? attrs.shippingStatus : 'shipped',
     shippedAt,
-    trackingNumber: attrs.trackingNumber,
+    trackingNumber: attrs.trackingNumber || null,
     trackingUrl: attrs.trackingUrl || null,
+    trackingEmailSent,
+    trackingEmailSkipped,
+    trackingEmailSentAt,
+    trackingEmailError: trackingEmailError || null,
+    message: alreadyShipped
+      ? trackingEmailSent
+        ? 'Order was already marked shipped. Tracking email sent.'
+        : 'Order was already marked shipped.'
+      : trackingEmailSent
+        ? 'Order marked as shipped. Tracking email sent to customer.'
+        : trackingEmailSkipped
+          ? 'Order marked as shipped. Tracking email was already sent earlier.'
+          : trackingEmailError
+            ? `Order marked as shipped, but tracking email failed: ${trackingEmailError}`
+            : 'Order marked as shipped.',
   }
 })

@@ -467,28 +467,40 @@ function buildTrackingEmailHtml(data: {
   trackingUrl: string
 }, brand?: EmailBrand): string {
   const { storeName, supportEmail } = resolveBrand(brand)
-  const carrierLine =
-    data.carrier || data.service
-      ? `<p style="margin:0 0 8px;color:#9ca3af;">Carrier: <strong style="color:#fff;">${escapeHtml(data.carrier || '—')}</strong>${
-          data.service ? ` · ${escapeHtml(data.service)}` : ''
-        }</p>`
-      : ''
+  const hasLink = Boolean(String(data.trackingUrl || '').trim())
 
   return `
   <div style="font-family:system-ui,-apple-system,sans-serif;background:#0b1220;padding:32px;color:#e5e7eb;">
     <div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid #1f2937;border-radius:16px;padding:28px;">
       <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#67e8f9;">${escapeHtml(storeName)}</p>
-      <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Your order has tracking</h1>
+      <h1 style="margin:0 0 12px;font-size:22px;color:#fff;">Your order has shipped</h1>
       <p style="margin:0 0 16px;color:#9ca3af;">Hi ${escapeHtml(data.customerName)}. Your order is on the way. Tracking will update as the carrier scans the package.</p>
       <p style="margin:0 0 8px;color:#9ca3af;">Order number: <strong style="color:#fff;font-family:monospace;">${escapeHtml(data.orderNumber)}</strong></p>
-      ${carrierLine}
-      <p style="margin:0 0 8px;color:#9ca3af;">Tracking number: <strong style="color:#fff;font-family:monospace;">${escapeHtml(data.trackingNumber)}</strong></p>
-      <p style="margin:24px 0 0;">
+      ${
+        data.carrier
+          ? `<p style="margin:0 0 8px;color:#9ca3af;">Carrier: <strong style="color:#fff;">${escapeHtml(data.carrier)}</strong></p>`
+          : ''
+      }
+      ${
+        data.service
+          ? `<p style="margin:0 0 8px;color:#9ca3af;">Service: <strong style="color:#fff;">${escapeHtml(data.service)}</strong></p>`
+          : ''
+      }
+      ${
+        data.trackingNumber && data.trackingNumber !== 'See tracking link'
+          ? `<p style="margin:0 0 8px;color:#9ca3af;">Tracking number: <strong style="color:#fff;font-family:monospace;">${escapeHtml(data.trackingNumber)}</strong></p>`
+          : ''
+      }
+      ${
+        hasLink
+          ? `<p style="margin:24px 0 0;">
         <a href="${escapeHtml(data.trackingUrl)}" style="display:inline-block;background:#06b6d4;color:#041016;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:10px;">
           Track your package
         </a>
-      </p>
-      <p style="margin:24px 0 0;font-size:12px;color:#6b7280;">Questions? ${escapeHtml(supportEmail)}</p>
+      </p>`
+          : ''
+      }
+      <p style="margin:24px 0 0;font-size:12px;color:#6b7280;">Support: ${escapeHtml(supportEmail)}</p>
       <p style="margin:8px 0 0;font-size:11px;color:#6b7280;">For laboratory and research use only. Not for human or animal consumption.</p>
     </div>
   </div>`
@@ -531,7 +543,7 @@ export async function sendTrackingEmail(
     await transporter.sendMail({
       from: config.orderFromEmail,
       to: data.email,
-      subject: `Your ${resolveBrand(config.brand).storeName} order has tracking`,
+      subject: `Your ${resolveBrand(config.brand).storeName} order has shipped — tracking`,
       html: buildTrackingEmailHtml(data, config.brand),
     })
     return { sent: true }
