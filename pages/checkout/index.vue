@@ -261,7 +261,7 @@
             <p class="text-red-400 text-sm">{{ error }}</p>
           </div>
 
-          <!-- Get Shipping Rates -->
+          <!-- Get Shipping Rates (auto-runs when confirmations are complete; button kept for refresh) -->
           <button
             @click="getShippingRates"
             :disabled="!canGetRates || isBusy"
@@ -275,7 +275,7 @@
           </button>
 
           <p class="text-dark-500 text-xs text-center">
-            Your order stays payment-pending. No charge and no shipping label on this step.
+            Shipping rates load automatically after you accept all confirmations. No charge and no shipping label on this step.
           </p>
 
           <!-- Shipping rates (inline) -->
@@ -430,7 +430,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, watch } from 'vue'
+import { reactive, ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useCartStore } from '~/stores/cart'
 import { CURRENCY } from '~/constants'
 
@@ -583,6 +583,22 @@ function resetShippingQuoteState() {
   }
 }
 
+let autoRatesTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleAutoShippingRates() {
+  if (autoRatesTimer) clearTimeout(autoRatesTimer)
+  autoRatesTimer = setTimeout(() => {
+    if (!canGetRates.value || isBusy.value) return
+    // Only auto-fetch when we don't already have a live quote.
+    if (rates.value.length > 0 || pendingOrderId.value) return
+    void getShippingRates()
+  }, 350)
+}
+
+onBeforeUnmount(() => {
+  if (autoRatesTimer) clearTimeout(autoRatesTimer)
+})
+
 // If contact/address/attestations change after a quote, require a fresh quote.
 watch(
   () => [
@@ -603,7 +619,11 @@ watch(
   ],
   () => {
     // Changing contact/address after prepare means rates must be re-quoted on a fresh pending order.
-    if (!pendingOrderId.value && rates.value.length === 0) return
+    if (!pendingOrderId.value && rates.value.length === 0) {
+      // First-time path: once all confirmations + address are ready, auto-load rates.
+      if (canGetRates.value) scheduleAutoShippingRates()
+      return
+    }
 
     pendingOrderId.value = null
     orderNumber.value = ''
@@ -614,6 +634,9 @@ watch(
     totalCents.value = 0
     resetShippingQuoteState()
     rateError.value = null
+
+    // After clearing a stale quote, auto-fetch again if the form is still complete.
+    if (canGetRates.value) scheduleAutoShippingRates()
   }
 )
 
